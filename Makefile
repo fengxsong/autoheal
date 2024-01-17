@@ -1,138 +1,67 @@
-# Old-skool build tools.
-#
-# Targets (see each target for more information):
-#   all: Build code.
-#   build: Build code.
-#   check: Run verify, build, unit tests and cmd tests.
-#   verify: Verify code conventions are properly setup.
-#   verify-commits: Verify commit comments.
-#   test-unit: Run unit tests.
-#   clean: Clean up.
-#   build-cross: Build the cross compiled release binaries.
-#   build-rpms: Build RPMs only for the Linux AMD64 target.
-#   build-images: Build images from the official RPMs.
-#   run-dev: Run autoheal server using dev defaults.
+APP_NAME ?= autoheal
 
-OUT_DIR = _output
-OS_OUTPUT_GOPATH ?= 1
+BUILD_DATE = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+BUILD_USER = $(shell whoami)
+VERSION ?= $(shell git describe --dirty --tags --always)
+REVISION = $(shell git rev-parse --short HEAD)
+BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
+GO ?= go
+BUILDAH ?= buildah
 
-export GOFLAGS
-export TESTFLAGS
-# If set to 1, create an isolated GOPATH inside _output using symlinks to avoid
-# other packages being accidentally included. Defaults to on.
-export OS_OUTPUT_GOPATH
-# May be used to set additional arguments passed to the image build commands for
-# mounting secrets specific to a build environment.
-export OS_BUILD_IMAGE_ARGS
+BUILD_PATH = ./cmd/autoheal/
+OUTPUT_PATH = build/_output/bin
 
-# Tests run using `make` are most often run by the CI system, so we are OK to
-# assume the user wants jUnit output and will turn it off if they don't.
-JUNIT_REPORT ?= true
+LDFLAGS := -s -X github.com/prometheus/common/version.Version=${VERSION} \
+	-X github.com/prometheus/common/version.Revision=${REVISION} \
+	-X github.com/prometheus/common/version.Branch=${BRANCH} \
+	-X github.com/prometheus/common/version.BuildUser=${BUILD_USER} \
+	-X github.com/prometheus/common/version.BuildDate=${BUILD_DATE}
 
-# Build code.
-#
-# Args:
-#   WHAT: Directory names to build.  If any of these directories has a 'main'
-#     package, the build will produce executable files under $(OUT_DIR)/local/bin.
-#     If not specified, "everything" will be built.
-#   GOFLAGS: Extra flags to pass to 'go' when building.
-#   TESTFLAGS: Extra flags that should only be passed to hack/test-go.sh
-#
-# Example:
-#   make
-#   make all
-#   make all WHAT=cmd/oc GOFLAGS=-v
-all build:
-	hack/build-go.sh $(WHAT) $(GOFLAGS)
-.PHONY: all build
+IMAGE_REPO ?= fengxsong/${APP_NAME}
+IMAGE_TAG ?= ${REVISION}
+IMAGE := ${IMAGE_REPO}:${IMAGE_TAG}
 
-# Run core verification and all self contained tests.
-#
-# Example:
-#   make check
-check: | verify test-unit
-.PHONY: check
+dep:
+	go mod tidy
 
+fmt:
+	go fmt ./...
 
-# Verify code conventions are properly setup.
-#
-# Example:
-#   make verify
-verify:
-	{ \
-	hack/verify-gofmt.sh ||r=1;\
-	hack/verify-govet.sh ||r=1;\
-	hack/verify-imports.sh ||r=1;\
-	exit $$r ;\
-	}
-.PHONY: verify
-
-
-# Verify commit comments.
-#
-# Example:
-#   make verify-commits
-verify-commits:
-	hack/verify-upstream-commits.sh
-.PHONY: verify-commits
-
-# Run unit tests.
-#
-# Args:
-#   WHAT: Directory names to test.  All *_test.go files under these
-#     directories will be run.  If not specified, "everything" will be tested.
-#   TESTS: Same as WHAT.
-#   GOFLAGS: Extra flags to pass to 'go' when building.
-#   TESTFLAGS: Extra flags that should only be passed to hack/test-go.sh
-#
-# Example:
-#   make test-unit
-#   make test-unit WHAT=pkg/build TESTFLAGS=-v
-test-unit:
-	GOTEST_FLAGS="$(TESTFLAGS)" hack/test-go.sh $(WHAT) $(TESTS)
-.PHONY: test-unit
-
-# Remove all build artifacts.
-#
-# Example:
-#   make clean
 clean:
-	rm -rf $(OUT_DIR)
-.PHONY: clean
+	rm -rf bin/
 
-# Build the cross compiled release binaries
-#
-# Example:
-#   make build-cross
-build-cross:
-	hack/build-cross.sh
-.PHONY: build-cross
+manifest: controller-gen
+	$(CONTROLLER_GEN) rbac:roleName=manager crd paths=./pkg/apis/autoheal/v1alpha2/... output:crd:dir=./manifests/crds
 
-# Build RPMs only for the Linux AMD64 target
-#
-# Args:
-#
-# Example:
-#   make build-rpms
-build-rpms:
-	OS_ONLY_BUILD_PLATFORMS='linux/amd64' hack/build-rpms.sh
-.PHONY: build-rpms
+generate:
+	bash hack/update-codegen.sh
 
-# Build images from the official RPMs
-#
-# Args:
-#
-# Example:
-#   make build-images
-build-images: build-rpms
-	hack/build-images.sh
-.PHONY: build-images
+# find or download controller-gen
+# download controller-gen if necessary
+controller-gen:
+ifeq (, $(shell which controller-gen))
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.0-beta.3
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+else
+CONTROLLER_GEN=$(shell which controller-gen)
+endif
 
+.PHONY: bin/autoheal
+bin/autoheal.%:
+	GOOS=$(word 2,$(subst ., ,$@)) GOARCH=$(word 3,$(subst ., ,$@)) CGO_ENABLED=0 ${GO} build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o $@ ${BUILD_PATH}
+local-cross: clean bin/autoheal.linux.amd64 bin/autoheal.linux.arm64
 
-# Run autoheal server using dev defaults.
-#
-# Example:
-#   make run-dev
-run-dev:
-	hack/run-dev.sh
-.PHONY: run-dev
+upx: local-cross
+	upx bin/autoheal.linux.amd64
+
+# Build multiarch container images
+buildimages:
+	# Make sure qemu-user-static+binfmt-support is installed
+	update-binfmts --enable
+	${BUILDAH} manifest create ${APP_NAME}
+	${BUILDAH} build --manifest ${APP_NAME} --arch amd64 --build-arg TARGETOS=linux --build-arg TARGETARCH=amd64 --build-arg LDFLAGS="${LDFLAGS}" -t ${IMAGE} -t ${IMAGE_REPO}:latest -f Dockerfile .
+	${BUILDAH} build --manifest ${APP_NAME} --arch arm64 --build-arg TARGETOS=linux --build-arg TARGETARCH=arm64 --build-arg LDFLAGS="${LDFLAGS}" -t ${IMAGE} -t ${IMAGE_REPO}:latest -f Dockerfile .
+
+# Push the images
+pushimages:
+	${BUILDAH} manifest push --all ${APP_NAME} docker://docker.io/${IMAGE}

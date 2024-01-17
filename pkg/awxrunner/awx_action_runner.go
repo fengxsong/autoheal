@@ -19,9 +19,9 @@ package awxrunner
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	"golang.org/x/sync/syncmap"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 
 	"github.com/moolitayer/awx-client-go/awx"
 	"github.com/openshift/autoheal/pkg/alertmanager"
@@ -84,7 +84,7 @@ func (r *Runner) RunAction(rule *autoheal.HealingRule, action interface{}, alert
 
 	// Create the connection to the AWX server:
 	connection, err := awx.NewConnectionBuilder().
-		Url(awxAddress).
+		URL(awxAddress).
 		Proxy(awxProxy).
 		Username(awxUser).
 		Password(awxPassword).
@@ -107,14 +107,14 @@ func (r *Runner) RunAction(rule *autoheal.HealingRule, action interface{}, alert
 	}
 	if templatesResponse.Count() == 0 {
 		return fmt.Errorf(
-			"Template '%s' not found in project '%s'",
+			"template '%s' not found in project '%s'",
 			awxTemplate,
 			awxProject,
 		)
 	}
 
 	// Launch the jobs:
-	glog.Infof(
+	klog.Infof(
 		"Running AWX job from project '%s' and template '%s' to heal alert '%s'",
 		awxProject,
 		awxTemplate,
@@ -142,26 +142,26 @@ func (r *Runner) launchAWXJob(
 
 	// Verify limit prompt on launch
 	if action.Limit != "" && !template.AskLimitOnLaunch() {
-		glog.Warningf("About to launch template '%s' with limit '%s', but 'prompt-on-launch' is false. Limit will be ignored",
+		klog.Warningf("About to launch template '%s' with limit '%s', but 'prompt-on-launch' is false. Limit will be ignored",
 			templateName, action.Limit)
 	}
 
 	// Verify extra-vars prompt on launch
 	if action.ExtraVars != nil && !template.AskVarsOnLaunch() {
-		glog.Warningf("About to launch template '%s' with extra-vars, but 'prompt-on-launch' is false. Extra Variables will be ignored",
+		klog.Warningf("About to launch template '%s' with extra-vars, but 'prompt-on-launch' is false. Extra Variables will be ignored",
 			templateName)
 	}
 
 	launchResource := connection.JobTemplates().Id(templateId).Launch()
 	response, err := launchResource.Post().
-		ExtraVars(action.ExtraVars).
+		ExtraVars(action.ExtraVars.Object).
 		ExtraVar("alert", alert).
 		Limit(action.Limit).
 		Send()
 	if err != nil {
 		return err
 	}
-	glog.Infof(
+	klog.Infof(
 		"Request to launch AWX job from template '%s' has been sent, job identifier is '%v'",
 		templateName,
 		response.Job,
@@ -189,7 +189,7 @@ func (r *Runner) checkAWXJobStatus(jobID int) (finished bool, err error) {
 
 	// Create the connection to the AWX server:
 	connection, err := awx.NewConnectionBuilder().
-		Url(awxAddress).
+		URL(awxAddress).
 		Proxy(awxProxy).
 		Username(awxUser).
 		Password(awxPassword).
@@ -210,7 +210,7 @@ func (r *Runner) checkAWXJobStatus(jobID int) (finished bool, err error) {
 
 	job := jobsResponse.Job()
 
-	glog.Infof(
+	klog.Infof(
 		"Job %d status: %s",
 		job.Id(),
 		job.Status(),

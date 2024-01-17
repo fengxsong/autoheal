@@ -21,12 +21,12 @@ import (
 	"reflect"
 	"regexp"
 
-	"github.com/golang/glog"
 	"github.com/openshift/autoheal/pkg/alertmanager"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/metrics"
 	batch "k8s.io/api/batch/v1"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 )
 
 func (h *Healer) runAlertsWorker() {
@@ -76,8 +76,8 @@ func (h *Healer) processAlert(alert *alertmanager.Alert) error {
 	case alertmanager.AlertStatusResolved:
 		return h.cancelHealing(alert)
 	default:
-		glog.Warningf(
-			"Unknnown status '%s' reported by alert manager, will ignore it",
+		klog.Warningf(
+			"Unknown status '%s' reported by alert manager, will ignore it",
 			alert.Status,
 		)
 		return nil
@@ -85,7 +85,6 @@ func (h *Healer) processAlert(alert *alertmanager.Alert) error {
 }
 
 // startHealing starts the healing process for the given alert.
-//
 func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 	// Find the rules that are activated for the alert:
 	activated := make([]*autoheal.HealingRule, 0)
@@ -93,14 +92,14 @@ func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 		rule := value.(*autoheal.HealingRule)
 		matches, err := h.checkRule(rule, alert)
 		if err != nil {
-			glog.Errorf(
+			klog.Errorf(
 				"Error while checking if rule '%s' matches alert '%s': %s",
 				rule.ObjectMeta.Name,
 				alert.Name(),
 				err,
 			)
 		} else if matches {
-			glog.Infof(
+			klog.Infof(
 				"Rule '%s' matches alert '%s'",
 				rule.ObjectMeta.Name,
 				alert.Name(),
@@ -110,7 +109,7 @@ func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 		return true
 	})
 	if len(activated) == 0 {
-		glog.Infof("No rule matches alert '%s'", alert.Name())
+		klog.Infof("No rule matches alert '%s'", alert.Name())
 		return nil
 	}
 
@@ -126,13 +125,12 @@ func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 }
 
 // cancelHealing cancels the healing process for the given alert.
-//
 func (h *Healer) cancelHealing(alert *alertmanager.Alert) error {
 	return nil
 }
 
 func (h *Healer) checkRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) (matches bool, err error) {
-	glog.Infof(
+	klog.Infof(
 		"Checking rule '%s' for alert '%s'",
 		rule.ObjectMeta.Name,
 		alert.Name(),
@@ -171,7 +169,7 @@ func (h *Healer) checkMap(values, patterns map[string]string) (result bool, err 
 
 func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	// Send the name of the rule to the log:
-	glog.Infof(
+	klog.Infof(
 		"Running rule '%s' for alert '%s'",
 		rule.ObjectMeta.Name,
 		alert.Name(),
@@ -185,7 +183,7 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 	} else if rule.BatchJob != nil {
 		action = rule.BatchJob.DeepCopy()
 	} else {
-		glog.Warningf(
+		klog.Warningf(
 			"There are no action details, rule '%s' will have no effect on alert '%s'",
 			rule.ObjectMeta.Name,
 			alert.Name(),
@@ -216,7 +214,7 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 
 	// Discard the action if it has been executed recently:
 	if h.actionMemory.Has(action) {
-		glog.Infof(
+		klog.Infof(
 			"Action for rule '%s' and alert '%s' has been executed recently, it will be ignored",
 			rule.ObjectMeta.Name,
 			alert.Name(),
@@ -232,7 +230,7 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 		err = h.actionRunners[ActionRunnerTypeBatch].RunAction(rule, typed, alert)
 	default:
 		err = fmt.Errorf(
-			"Don't know how to execute action of type '%T'",
+			"don't know how to execute action of type '%T'",
 			typed,
 		)
 	}

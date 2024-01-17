@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 // Package config contains types and functions used to load the service configuration.
-//
 package config
 
 import (
@@ -32,7 +31,6 @@ import (
 
 // RulesConfig is a read only view of the section of the configuration that describes
 // the healing rules.
-//
 type RulesConfig struct {
 	rules []*autoheal.HealingRule
 
@@ -67,7 +65,7 @@ func (r *RulesConfig) mergeRule(rawRule interface{}) error {
 	// JSON, as the coded only supports JSON.
 	jsonRule, err := json.Marshal(rawRule)
 	if err != nil {
-		return fmt.Errorf("Can't convert rule to JSON: %s", err)
+		return fmt.Errorf("can't convert rule to JSON: %s", err)
 	}
 
 	// Now we can create an empty instance of the type that we expect and try to convert the JSON
@@ -77,13 +75,13 @@ func (r *RulesConfig) mergeRule(rawRule interface{}) error {
 	defaultGVK := v1alpha2.SchemeGroupVersion.WithKind(defaultKind)
 	outRule, _, err := r.codec.Decode(jsonRule, &defaultGVK, inRule)
 	if err != nil {
-		return fmt.Errorf("Can't convert rule JSON to type '%s': %s", defaultKind, err)
+		return fmt.Errorf("can't convert rule JSON to type '%s': %s", defaultKind, err)
 	}
 
 	// Check that the resulting object is really the type that we expect:
 	convertedRule, ok := outRule.(*autoheal.HealingRule)
 	if !ok {
-		return fmt.Errorf("Converted rule is of type '%T', but expected '%T'", outRule, inRule)
+		return fmt.Errorf("converted rule is of type '%T', but expected '%T'", outRule, inRule)
 	}
 
 	// Add the rule to the list:

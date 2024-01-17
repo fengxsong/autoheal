@@ -20,16 +20,15 @@ limitations under the License.
 package autoheal
 
 import (
-	"encoding/json"
-
 	batch "k8s.io/api/batch/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift/autoheal/pkg/apis/extension"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // HealingRule is the description of an healing rule.
-//
 type HealingRule struct {
 	meta.TypeMeta
 
@@ -56,26 +55,7 @@ type HealingRule struct {
 	BatchJob *batch.Job
 }
 
-// JsonDoc represents json document
-type JsonDoc map[string]interface{}
-
-func (in JsonDoc) DeepCopy() (out JsonDoc) {
-	if in != nil {
-		bytes, err := json.Marshal(in)
-		if err != nil {
-			return
-		}
-
-		err = json.Unmarshal(bytes, &out)
-		if err != nil {
-			return
-		}
-	}
-	return
-}
-
 // AWXJobAction describes how to run an Ansible AWX job.
-//
 type AWXJobAction struct {
 	// Template is the name of the AWX job template that will be launched.
 	// +optional
@@ -83,7 +63,7 @@ type AWXJobAction struct {
 
 	// ExtraVars are the extra variables that will be passed to job.
 	// +optional
-	ExtraVars JsonDoc
+	ExtraVars *extension.AnyConfig
 
 	// Limit is a pattern that will be passed to the job to constrain
 	// the hosts that will be affected by the playbook.
@@ -94,7 +74,6 @@ type AWXJobAction struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // HealingRuleList is a list of healing rules.
-//
 type HealingRuleList struct {
 	meta.TypeMeta
 	meta.ListMeta

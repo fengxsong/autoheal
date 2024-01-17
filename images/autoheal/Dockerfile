@@ -1,18 +1,22 @@
-FROM openshift/origin-base
+ARG BUILD_IMAGE=golang:1.21-alpine
 
-RUN \
-INSTALL_PKGS="openshift-autoheal" && \
-yum --enablerepo=origin-local-release install -y ${INSTALL_PKGS} && \
-rpm --verify ${INSTALL_PKGS} && \
-yum clean all
+FROM $BUILD_IMAGE as build
+ARG TARGETOS
+ARG TARGETARCH
+ARG LDFLAGS
 
-LABEL \
-io.k8s.display-name="OpenShift Autoheal" \
-io.k8s.description="OpenShift Autoheal" \
-io.openshift.tags="openshift"
+WORKDIR /workspace
+ENV GOPROXY=https://goproxy.cn
+COPY go.mod go.sum /workspace/
+RUN go mod download
+COPY cmd /workspace/cmd
+COPY pkg /workspace/pkg
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o autoheal cmd/autoheal/
 
+FROM alpine:3.17
 RUN useradd --no-create-home autoheal
 USER autoheal
 EXPOSE 9099
 
-CMD [ "/usr/bin/autoheal" ]
+COPY --from=build /workspace/autoheal /usr/local/bin/autoheal
+ENTRYPOINT [ "/usr/local/bin/autoheal" ]

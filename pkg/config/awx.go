@@ -15,13 +15,13 @@ limitations under the License.
 */
 
 // Package config contains types and functions used to load the service configuration.
-//
 package config
 
 import (
 	"bytes"
+	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"time"
 
 	core "k8s.io/api/core/v1"
@@ -33,7 +33,6 @@ import (
 
 // AWX is a read only view of section of the configuration of the auto-heal service that describes
 // how to connect to the AWX server, and how to launch jobs from templates.
-//
 type AWXConfig struct {
 	address                string
 	proxy                  string
@@ -50,7 +49,6 @@ type AWXConfig struct {
 
 // Address returns the complete address of the API of the AWX server, including the /api suffix,
 // but not the /v1 or /v2 suffixes.
-//
 func (c *AWXConfig) Address() string {
 	return c.address
 }
@@ -62,28 +60,24 @@ func (c *AWXConfig) Address() string {
 //	http://myproxy.example.com:3128
 //
 // An empty string means that no proxy should be used.
-//
 func (c *AWXConfig) Proxy() string {
 	return c.proxy
 }
 
 // User returns the name of the user that the auto-heal service will use to connect to the AWX
 // server.
-//
 func (c *AWXConfig) User() string {
 	return c.user
 }
 
 // Password returns the password of the user that the auto-heal service will use to connect to
 // the AWX server.
-//
 func (c *AWXConfig) Password() string {
 	return c.password
 }
 
 // CA returns the PEM encoded certificates of the authorities that should be trusted when checking
 // the TLS certificate presented by the AWX server. If not provided the system cert pool will be used.
-//
 func (c *AWXConfig) CA() []byte {
 	if c.ca == nil {
 		return nil
@@ -92,19 +86,16 @@ func (c *AWXConfig) CA() []byte {
 }
 
 // Project returns the name of the AWX project that contains the auto-heal job templates.
-//
 func (c *AWXConfig) Project() string {
 	return c.project
 }
 
 // Whether to use insecure connection to connect to AWX.
-//
 func (c *AWXConfig) Insecure() bool {
 	return c.insecure
 }
 
 // Return the duration of how often the active AWX jobs status is checked
-//
 func (c *AWXConfig) JobStatusCheckInterval() time.Duration {
 	return c.jobStatusCheckInterval
 }
@@ -201,7 +192,7 @@ func (a *AWXConfig) mergeAWXTLS(tls *data.TLSConfig) error {
 		a.ca.WriteString(tls.CACerts)
 	}
 	if tls.CAFile != "" {
-		caCerts, err := ioutil.ReadFile(tls.CAFile)
+		caCerts, err := os.ReadFile(tls.CAFile)
 		if err != nil {
 			return err
 		}
@@ -229,18 +220,18 @@ func (a *AWXConfig) mergeAWXTLSSecret(reference *core.SecretReference) error {
 func (a *AWXConfig) loadSecret(reference *core.SecretReference) (secret *core.Secret, err error) {
 	// Both the name and the namespace are mandatory:
 	if reference.Name == "" {
-		err = fmt.Errorf("The name of the secret is mandatory, but it hasn't been specified")
+		err = fmt.Errorf("the name of the secret is mandatory, but it hasn't been specified")
 		return
 	}
 	if reference.Namespace == "" {
-		err = fmt.Errorf("The namespace of the secret is mandatory, but it hasn't been specified")
+		err = fmt.Errorf("the namespace of the secret is mandatory, but it hasn't been specified")
 		return
 	}
 
 	// Check that we have a client to use the Kubernetes API:
 	if a.client == nil {
 		err = fmt.Errorf(
-			"Can't load secret '%s' from namespace '%s' because there is no connection to the Kubernetes API",
+			"can't load secret '%s' from namespace '%s' because there is no connection to the Kubernetes API",
 			reference.Name,
 			reference.Namespace,
 		)
@@ -249,10 +240,10 @@ func (a *AWXConfig) loadSecret(reference *core.SecretReference) (secret *core.Se
 
 	// Try to retrieve the secret:
 	resource := a.client.CoreV1().Secrets(reference.Namespace)
-	secret, err = resource.Get(reference.Name, meta.GetOptions{})
+	secret, err = resource.Get(context.Background(), reference.Name, meta.GetOptions{})
 	if err != nil {
 		err = fmt.Errorf(
-			"Can't load secret '%s' from namespace '%s': %s",
+			"can't load secret '%s' from namespace '%s': %s",
 			reference.Name,
 			reference.Namespace,
 			err,

@@ -15,11 +15,10 @@ limitations under the License.
 */
 
 // Package main contains a mock AWX server for autoheal development
-//
 package main
 
 import (
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 )
@@ -29,7 +28,7 @@ func logRequest(r *http.Request) {
 
 	if r.Method == "POST" {
 		// Read body
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		defer r.Body.Close()
 		if err == nil {
 			log.Print("Request body:")

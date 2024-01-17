@@ -4,6 +4,8 @@
 *.tar
 *.tar.gz
 .hash
+vendor/*
 /.idea
+/.vscode
 /_output
 /autoheal

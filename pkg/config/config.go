@@ -15,12 +15,10 @@ limitations under the License.
 */
 
 // Package config contains types and functions used to load the service configuration.
-//
 package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,15 +26,14 @@ import (
 	"sync"
 
 	"github.com/ghodss/yaml"
-	"github.com/golang/glog"
 	"github.com/yaacov/observer/observer"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/internal/data"
 )
 
 // Config is a read only view of the configuration of the auto-heal service.
-//
 type Config struct {
 	awx        *AWXConfig
 	throttling *ThrottlingConfig
@@ -51,38 +48,32 @@ type Config struct {
 
 // AWX returns a read only view of the section of the configuration of the auto-heal service that
 // describes how to connect to the AWX server, and how to launch jobs from templates.
-//
 func (c *Config) AWX() *AWXConfig {
 	return c.awx
 }
 
 // Throttling returns a read only view of the section of the configuration that describes how to
 // throttle the execution of healing rules.
-//
 func (c *Config) Throttling() *ThrottlingConfig {
 	return c.throttling
 }
 
 // Rules returns the list of healing rules defined in the configuration.
-//
 func (c *Config) Rules() []*autoheal.HealingRule {
 	return c.rules.rules
 }
 
 // ShutDown close the change obeserver channels
-//
 func (c *Config) ShutDown() {
 	c.listener.shutDown()
 }
 
 // AddChangeListener to be called on config object update
-//
 func (c *Config) AddChangeListener(listener ChangeListener) {
 	c.listener.addChangeListener(listener)
 }
 
 // watch starts watching the configuration files.
-//
 func (c *Config) watch() error {
 	e := c.listener
 	e.open()
@@ -94,7 +85,7 @@ func (c *Config) watch() error {
 		return err
 	}
 	for _, file := range configFiles {
-		glog.Infof("Watching configuration file '%s'", file)
+		klog.Infof("Watching configuration file '%s'", file)
 	}
 
 	// Load new configuration when config files change.
@@ -106,10 +97,10 @@ func (c *Config) watch() error {
 		defer c.listenerMutex.Unlock()
 
 		// Reload the configuration files:
-		glog.Infof("Configuration files have changed")
+		klog.Infof("Configuration files have changed")
 		err := c.load()
 		if err != nil {
-			glog.Errorf("Can't reload configuration files: %s", err)
+			klog.Errorf("Can't reload configuration files: %s", err)
 			return
 		}
 
@@ -121,7 +112,6 @@ func (c *Config) watch() error {
 }
 
 // load the configuration files and returns an error on fail.
-//
 func (c *Config) load() (err error) {
 	// Loading the configuration modifies the members of the structure in place, so we need to avoid
 	// running it simultaneously from multiple goroutines:
@@ -136,19 +126,19 @@ func (c *Config) load() (err error) {
 		var info os.FileInfo
 		info, err = os.Stat(file)
 		if err != nil {
-			err = fmt.Errorf("Can't check if '%s' is a file or a directory: %s", file, err)
+			err = fmt.Errorf("can't check if '%s' is a file or a directory: %s", file, err)
 			return
 		}
 		if info.IsDir() {
 			err = c.mergeDir(file)
 			if err != nil {
-				err = fmt.Errorf("Can't load configuration directory '%s': %s", file, err)
+				err = fmt.Errorf("can't load configuration directory '%s': %s", file, err)
 				return
 			}
 		} else {
 			err = c.mergeFile(file)
 			if err != nil {
-				err = fmt.Errorf("Can't load configuration file '%s': %s", file, err)
+				err = fmt.Errorf("can't load configuration file '%s': %s", file, err)
 				return
 			}
 		}
@@ -159,7 +149,7 @@ func (c *Config) load() (err error) {
 
 func (c *Config) mergeDir(dir string) error {
 	// List the files in the directory:
-	infos, err := ioutil.ReadDir(dir)
+	infos, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -190,9 +180,9 @@ func (c *Config) mergeFile(file string) error {
 	var err error
 
 	// Read the content of the file:
-	glog.Infof("Loading configuration file '%s'", file)
+	klog.Infof("Loading configuration file '%s'", file)
 	var content []byte
-	content, err = ioutil.ReadFile(file)
+	content, err = os.ReadFile(file)
 	if err != nil {
 		return err
 	}

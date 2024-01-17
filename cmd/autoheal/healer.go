@@ -21,17 +21,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"time"
 
-	"github.com/golang/glog"
 	"golang.org/x/sync/syncmap"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/alertmanager"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
@@ -43,7 +43,6 @@ import (
 )
 
 // HealerBuilder is used to create new healers.
-//
 type HealerBuilder struct {
 	// Configuration files.
 	configFiles []string
@@ -54,7 +53,6 @@ type HealerBuilder struct {
 
 // Healer contains the information needed to receive notifications about changes in the
 // Prometheus configuration and to start or reload it when there are changes.
-//
 type Healer struct {
 	// The configuration.
 	config *config.Config
@@ -78,14 +76,12 @@ type Healer struct {
 }
 
 // NewHealerBuilder creates a new builder for healers.
-//
 func NewHealerBuilder() *HealerBuilder {
 	b := new(HealerBuilder)
 	return b
 }
 
 // ConfigFile adds one configuration file.
-//
 func (b *HealerBuilder) ConfigFile(path string) *HealerBuilder {
 	b.configFiles = append(b.configFiles, path)
 	return b
@@ -93,7 +89,6 @@ func (b *HealerBuilder) ConfigFile(path string) *HealerBuilder {
 
 // ConfigFiles adds one or more configuration files or directories. They will be loaded in the order
 // given. For directories all the contained files will be loaded, in alphabetical order.
-//
 func (b *HealerBuilder) ConfigFiles(paths []string) *HealerBuilder {
 	if len(paths) > 0 {
 		for _, path := range paths {
@@ -104,20 +99,18 @@ func (b *HealerBuilder) ConfigFiles(paths []string) *HealerBuilder {
 }
 
 // KubernetesClient sets the Kubernetes client that will be used by the healer.
-//
 func (b *HealerBuilder) KubernetesClient(client kubernetes.Interface) *HealerBuilder {
 	b.k8sClient = client
 	return b
 }
 
 // Build creates the healer using the configuration stored in the builder.
-//
 func (b *HealerBuilder) Build() (h *Healer, err error) {
 	var cfg *config.Config
 
 	// Create new config and load the configuration files:
 	if len(b.configFiles) == 0 {
-		err = fmt.Errorf("No configuration file has been provided")
+		err = fmt.Errorf("no configuration file has been provided")
 		return
 	}
 	cfg, err = config.NewBuilder().
@@ -127,10 +120,6 @@ func (b *HealerBuilder) Build() (h *Healer, err error) {
 	if err != nil {
 		return
 	}
-
-	// Send to the log a summary of the configuration:
-	glog.Infof("AWX user is '%s'", cfg.AWX().User())
-	glog.Infof("AWX project is '%s'", cfg.AWX().Project())
 
 	// Create the actions memory:
 	actionMemory, err := memory.NewShortTermMemoryBuilder().
@@ -160,7 +149,6 @@ func (b *HealerBuilder) Build() (h *Healer, err error) {
 }
 
 // Run waits for the informers caches to sync, and then starts the workers and the web server.
-//
 func (h *Healer) Run(stopCh <-chan struct{}) error {
 	defer runtime.HandleCrash()
 	defer h.rulesQueue.ShutDown()
@@ -178,7 +166,7 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 		Build()
 
 	if err != nil {
-		glog.Warningf("Error building AWX runner: %s", err)
+		klog.Warningf("Error building AWX runner: %s", err)
 	}
 
 	batchRunner, err := batchrunner.NewBuilder().
@@ -186,14 +174,14 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 		Build()
 
 	if err != nil {
-		glog.Warningf("Error building batch runner: %s", err)
+		klog.Warningf("Error building batch runner: %s", err)
 	}
 
-	// initiailize runners.
+	// initialize runners.
 	h.actionRunners[ActionRunnerTypeAWX] = awxRunner
 	h.actionRunners[ActionRunnerTypeBatch] = batchRunner
 
-	glog.Info("Workers started")
+	klog.Info("Workers started")
 
 	// Reload the rules cache.
 	h.reloadRulesCache()
@@ -210,7 +198,7 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 
 	server := &http.Server{Addr: ":9099"}
 	go server.ListenAndServe()
-	glog.Info("Web server started")
+	klog.Info("Web server started")
 
 	// Wait till we are requested to stop:
 	<-stopCh
@@ -225,7 +213,6 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 }
 
 // Reload all rules in rules cache (by sending "Deleted" + "Added" to queue).
-//
 func (h *Healer) reloadRulesCache() {
 	// Send Delete signal to all rules currently in rules cache:
 	h.rulesCache.Range(func(key, value interface{}) bool {
@@ -249,17 +236,17 @@ func (h *Healer) reloadRulesCache() {
 			}
 			h.rulesQueue.Add(change)
 		}
-		glog.Infof("Loaded %d healing rules from the configuration", len(rules))
+		klog.Infof("Loaded %d healing rules from the configuration", len(rules))
 	} else {
-		glog.Warningf("There are no healing rules in the configuration")
+		klog.Warningf("There are no healing rules in the configuration")
 	}
 }
 
 func (h *Healer) handleRequest(response http.ResponseWriter, request *http.Request) {
 	// Read the request body:
-	body, err := ioutil.ReadAll(request.Body)
+	body, err := io.ReadAll(request.Body)
 	if err != nil {
-		glog.Warningf("Can't read request body: %s", err)
+		klog.Warningf("Can't read request body: %s", err)
 		http.Error(
 			response,
 			http.StatusText(http.StatusBadRequest),
@@ -269,15 +256,15 @@ func (h *Healer) handleRequest(response http.ResponseWriter, request *http.Reque
 	}
 
 	// Dump the request to the log:
-	if glog.V(2) {
-		glog.Infof("Request body:\n%s", h.indent(body))
+	if klog.V(2).Enabled() {
+		klog.Infof("Request body:\n%s", h.indent(body))
 	}
 
 	// Parse the JSON request body:
 	message := new(alertmanager.Message)
 	json.Unmarshal(body, message)
 	if err != nil {
-		glog.Warningf("Can't parse request body: %s", err)
+		klog.Warningf("Can't parse request body: %s", err)
 		http.Error(
 			response,
 			http.StatusText(http.StatusBadRequest),

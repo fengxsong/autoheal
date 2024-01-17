@@ -18,10 +18,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
+	"github.com/prometheus/common/version"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
+	"k8s.io/component-base/cli"
+	"k8s.io/component-base/logs"
 )
 
 var rootCmd = &cobra.Command{
@@ -31,19 +34,25 @@ var rootCmd = &cobra.Command{
 		"actions can be AWX jobs or Kubernetes batch jobs.",
 }
 
+var appName = "autoheal"
+
 func init() {
+	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 	rootCmd.AddCommand(serverCmd)
-	flag.Set("logtostderr", "true")
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	rootCmd.AddCommand(versionCommand())
 }
 
 func main() {
-	// This is needed to make `glog` believe that the flags have already been parsed, otherwise
-	// every log messages is prefixed by an error message stating the the flags haven't been
-	// parsed.
-	flag.CommandLine.Parse([]string{})
+	logs.InitLogs()
+	os.Exit(cli.Run(rootCmd))
+}
 
-	// Execute the root command:
-	rootCmd.SetArgs(os.Args[1:])
-	rootCmd.Execute()
+func versionCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Fprintln(os.Stdout, version.Print(appName))
+		},
+	}
 }

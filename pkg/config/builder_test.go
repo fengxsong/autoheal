@@ -18,7 +18,6 @@ package config
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"strings"
@@ -42,10 +41,10 @@ func TestFiles(t *testing.T) {
       awx:
         proxy: "http://test-proxy.com:1234"`
 
-	tempDir, _ := ioutil.TempDir("", "test_dir")
+	tempDir, _ := os.MkdirTemp("", "test_dir")
 
-	file0, _ := ioutil.TempFile(tempDir, "test_file0")
-	file1, _ := ioutil.TempFile(tempDir, "test_file1")
+	file0, _ := os.CreateTemp(tempDir, "test_file0")
+	file1, _ := os.CreateTemp(tempDir, "test_file1")
 
 	file0.WriteString(data0)
 	file1.WriteString(data1)
@@ -64,10 +63,10 @@ func TestFiles(t *testing.T) {
 
 	expected := &Config{
 		awx: &AWXConfig{
-			address: "http://test_address.com",
-			proxy:   "http://test-proxy.com:1234",
+			address:                "http://test_address.com",
+			proxy:                  "http://test-proxy.com:1234",
 			jobStatusCheckInterval: 5 * time.Minute,
-			ca: new(bytes.Buffer),
+			ca:                     new(bytes.Buffer),
 		},
 		throttling: &ThrottlingConfig{
 			interval: 1 * time.Hour,
@@ -94,7 +93,7 @@ func TestFiles(t *testing.T) {
 
 func TestLoadFile(t *testing.T) {
 	filename := "test_config"
-	file, _ := ioutil.TempFile("", filename)
+	file, _ := os.CreateTemp("", filename)
 
 	defer file.Close()
 	defer os.Remove(file.Name())
@@ -108,7 +107,7 @@ func TestLoadFile(t *testing.T) {
 			expected: &Config{
 				awx: &AWXConfig{
 					jobStatusCheckInterval: time.Duration(5) * time.Minute,
-					ca: new(bytes.Buffer),
+					ca:                     new(bytes.Buffer),
 				},
 				throttling: &ThrottlingConfig{
 					interval: time.Duration(1) * time.Hour,
@@ -130,10 +129,10 @@ func TestLoadFile(t *testing.T) {
                    template: "Start node"`,
 			expected: &Config{
 				awx: &AWXConfig{
-					address: "https://my-awx.example.com/api",
-					proxy:   "http://my-proxy.example.com:3128",
+					address:                "https://my-awx.example.com/api",
+					proxy:                  "http://my-proxy.example.com:3128",
 					jobStatusCheckInterval: time.Duration(5) * time.Minute,
-					ca: new(bytes.Buffer),
+					ca:                     new(bytes.Buffer),
 				},
 				throttling: &ThrottlingConfig{
 					interval: time.Duration(1) * time.Hour,
@@ -177,7 +176,7 @@ func TestLoadFile(t *testing.T) {
 					proxy:                  "http://my-proxy.example.com:3128",
 					project:                "Test Project",
 					jobStatusCheckInterval: time.Duration(3) * time.Minute,
-					ca: new(bytes.Buffer),
+					ca:                     new(bytes.Buffer),
 				},
 				throttling: &ThrottlingConfig{
 					interval: time.Duration(1) * time.Hour,
@@ -242,7 +241,7 @@ func TestLoadFile(t *testing.T) {
 					proxy:                  "http://my-proxy.example.com:3128",
 					project:                "Test Project",
 					jobStatusCheckInterval: time.Duration(3) * time.Minute,
-					ca: new(bytes.Buffer),
+					ca:                     new(bytes.Buffer),
 				},
 				throttling: &ThrottlingConfig{
 					interval: time.Duration(1) * time.Hour,
@@ -328,8 +327,8 @@ func TestLoadFile(t *testing.T) {
 func TestLoadDir(t *testing.T) {
 	filename := "test_config"
 
-	dir, _ := ioutil.TempDir("", "temp_dir")
-	file, _ := ioutil.TempFile(dir, filename)
+	dir, _ := os.MkdirTemp("", "temp_dir")
+	file, _ := os.CreateTemp(dir, filename)
 
 	newFileName := strings.Join([]string{file.Name(), ".yml"}, "")
 	os.Rename(file.Name(), newFileName)
@@ -350,10 +349,10 @@ func TestLoadDir(t *testing.T) {
 
 	expected := &Config{
 		awx: &AWXConfig{
-			address: "https://my-awx.example.com/api",
-			proxy:   "http://my-proxy.example.com:3128",
+			address:                "https://my-awx.example.com/api",
+			proxy:                  "http://my-proxy.example.com:3128",
 			jobStatusCheckInterval: time.Duration(5) * time.Minute,
-			ca: new(bytes.Buffer),
+			ca:                     new(bytes.Buffer),
 		},
 		throttling: &ThrottlingConfig{
 			interval: time.Duration(1) * time.Hour,

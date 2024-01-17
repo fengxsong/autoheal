@@ -26,7 +26,6 @@ import (
 )
 
 // AlertStatus represents the status of a alert.
-//
 type AlertStatus string
 
 const (
@@ -35,7 +34,6 @@ const (
 )
 
 // Data represents each message sent by the alert manager to a receiver.
-//
 type Message struct {
 	Receiver          string            `json:"receiver,omitempty"`
 	Status            AlertStatus       `json:"status,omitempty"`
@@ -43,11 +41,10 @@ type Message struct {
 	GroupLabels       map[string]string `json:"groupLabels,omitempty"`
 	CommonLabels      map[string]string `json:"commonLabels,omitempty"`
 	CommonAnnotations map[string]string `json:"commonAnnotations,omitempty"`
-	ExternalURL       string            `json:"exterlalURL,omitempty"`
+	ExternalURL       string            `json:"externalURL,omitempty"`
 }
 
 // Alert represents each of the alerts sent by the alert manager to a receiver.
-//
 type Alert struct {
 	Status       AlertStatus       `json:"status,omitempty"`
 	Labels       map[string]string `json:"labels,omitempty"`
@@ -58,13 +55,11 @@ type Alert struct {
 }
 
 // Name returns the name of the alert.
-//
 func (a *Alert) Name() string {
 	return a.Labels["alertname"]
 }
 
 // Namespace returns the namespace of the alert.
-//
 func (a *Alert) Namespace() string {
 	namespace := a.Labels["namespace"]
 	if namespace == "" {
@@ -77,7 +72,6 @@ func (a *Alert) Namespace() string {
 }
 
 // Hash calculates the hash for the alert.
-//
 func (a *Alert) Hash() string {
 	dst := fnv.New32a()
 	hashMap(a.Labels, dst)
@@ -89,7 +83,6 @@ func (a *Alert) Hash() string {
 
 // hashMap writes the keys and values of a map to a hash, making sure that they are in order to
 // that the result will allways be the same regardless of the internal ordering of the map.
-//
 func hashMap(src map[string]string, dst hash.Hash) {
 	keys := make([]string, len(src))
 	i := 0

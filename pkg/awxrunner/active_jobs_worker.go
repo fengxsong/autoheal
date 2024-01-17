@@ -17,14 +17,14 @@ limitations under the License.
 package awxrunner
 
 import (
-	"github.com/golang/glog"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/metrics"
 	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 )
 
 func (r *Runner) runActiveJobsWorker() {
-	glog.Infof("Going over active jobs queue")
+	klog.Infof("Going over active jobs queue")
 
 	finishedJobs := make([]int, 0)
 
@@ -49,7 +49,7 @@ func (r *Runner) runActiveJobsWorker() {
 
 	// remove finished jobs from the queue
 	for _, job := range finishedJobs {
-		glog.Infof(
+		klog.Infof(
 			"Removing finished job '%v' from queue ",
 			job,
 		)

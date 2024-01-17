@@ -21,12 +21,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/openshift/autoheal/pkg/alertmanager"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/memory"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 )
 
 func TestRuleWithExactLabel(t *testing.T) {
@@ -576,7 +576,7 @@ type FakeActionRunner struct {
 }
 
 func (f FakeActionRunner) RunAction(rule *autoheal.HealingRule, action interface{}, alert *alertmanager.Alert) error {
-	glog.Infof("Fake ActionRunner called with rule '%s' and alert '%s'",
+	klog.Infof("Fake ActionRunner called with rule '%s' and alert '%s'",
 		rule.ObjectMeta.Name,
 		alert.Name(),
 	)

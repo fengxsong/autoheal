@@ -21,12 +21,12 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/metrics"
 	"github.com/openshift/autoheal/pkg/signals"
@@ -85,28 +85,26 @@ func kubeConfigPath(serverKubeConfig string) (kubeConfig string, err error) {
 	// Get the config file path
 	if serverKubeConfig != "" {
 		kubeConfig = serverKubeConfig
-	} else {
-		if kubeConfig, ok = os.LookupEnv("KUBECONFIG"); ok != true {
-			kubeConfig = filepath.Join(homedir.HomeDir(), ".kube", "config")
-		}
+	} else if kubeConfig, ok = os.LookupEnv("KUBECONFIG"); !ok {
+		kubeConfig = filepath.Join(homedir.HomeDir(), ".kube", "config")
 	}
 
 	// Check config file:
 	fInfo, err := os.Stat(kubeConfig)
 	if os.IsNotExist(err) {
 		// NOTE: If config file does not exist, assume using pod configuration.
-		err = fmt.Errorf("The Kubernetes configuration file '%s' doesn't exist", kubeConfig)
+		err = fmt.Errorf("the Kubernetes configuration file '%s' doesn't exist", kubeConfig)
 		kubeConfig = ""
 		return
 	}
 
 	// Check error codes.
 	if fInfo.IsDir() {
-		err = fmt.Errorf("The Kubernetes configuration path '%s' is a direcory", kubeConfig)
+		err = fmt.Errorf("the Kubernetes configuration path '%s' is a direcory", kubeConfig)
 		return
 	}
 	if os.IsPermission(err) {
-		err = fmt.Errorf("Can't open Kubernetes configuration file '%s'", kubeConfig)
+		err = fmt.Errorf("can't open Kubernetes configuration file '%s'", kubeConfig)
 		return
 	}
 
@@ -125,32 +123,28 @@ func serverRun(cmd *cobra.Command, args []string) {
 		// If error is nil, we have a valid kubeConfig file:
 		config, err = clientcmd.BuildConfigFromFlags(serverKubeAddress, kubeConfig)
 		if err != nil {
-			glog.Fatalf(
+			klog.Fatalf(
 				"Error loading REST client configuration from file '%s': %s",
 				kubeConfig, err,
 			)
 		}
 	} else if kubeConfig == "" {
-		glog.Infof("Info: %s", err)
-
-		// If kubeConfig is "", file is missing, in this case we will
-		// try to use in-cluster configuration.
-		glog.Info("Try to use the in-cluster configuration")
+		klog.Infof("Try to use the in-cluster configuration cause %s", err)
 		config, err = rest.InClusterConfig()
 
 		// Catch in-cluster configuration error:
 		if err != nil {
-			glog.Fatalf("Error loading in-cluster REST client configuration: %s", err)
+			klog.Fatalf("Error loading in-cluster REST client configuration: %s", err)
 		}
 	} else {
 		// Catch all errors:
-		glog.Fatalf("Error: %s", err)
+		klog.Fatalln(err)
 	}
 
 	// Create the Kuberntes API client:
 	k8sClient, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Error building Kubernets API client: %s", err.Error())
+		klog.Fatalf("Error building Kubernetes API client: %s", err.Error())
 	}
 
 	// Build the healer:
@@ -159,7 +153,7 @@ func serverRun(cmd *cobra.Command, args []string) {
 		KubernetesClient(k8sClient).
 		Build()
 	if err != nil {
-		glog.Fatalf("Error building healer: %s", err.Error())
+		klog.Fatalf("Error building healer: %s", err.Error())
 	}
 
 	// Register exported metrics:
@@ -167,6 +161,6 @@ func serverRun(cmd *cobra.Command, args []string) {
 
 	// Run the healer:
 	if err = healer.Run(stopCh); err != nil {
-		glog.Fatalf("Error running healer: %s", err.Error())
+		klog.Fatalf("Error running healer: %s", err.Error())
 	}
 }

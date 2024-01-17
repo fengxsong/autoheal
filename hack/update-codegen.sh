@@ -15,11 +15,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+set -x
+set -o errexit
+set -o nounset
+set -o pipefail
 
-vendor/k8s.io/code-generator/generate-internal-groups.sh \
-deepcopy-gen,conversion-gen \
-github.com/openshift/autoheal/pkg/client \
-github.com/openshift/autoheal/pkg/apis \
-github.com/openshift/autoheal/pkg/apis \
-autoheal:v1alpha2 \
---go-header-file hack/boilerplate.txt
+SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
+SCRIPT_ROOT="${SCRIPT_DIR}/.."
+
+CODEGEN_VERSION=$(cd "${SCRIPT_ROOT}" && grep 'k8s.io/code-generator' go.mod | awk '{print $2}')
+
+if [ -z "${GOPATH:-}" ]; then
+    GOPATH=$(go env GOPATH)
+    export GOPATH
+fi
+CODEGEN_PKG="$GOPATH/pkg/mod/k8s.io/code-generator@${CODEGEN_VERSION}"
+
+source "${CODEGEN_PKG}/kube_codegen.sh"
+
+kube::codegen::gen_helpers \
+    --input-pkg-root github.com/openshift/autoheal \
+    --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../.." \
+    --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt"

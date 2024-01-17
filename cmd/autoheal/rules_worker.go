@@ -17,9 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 )
@@ -80,12 +80,12 @@ func (h *Healer) processAddedRule(rule *autoheal.HealingRule) error {
 	value, ok := h.rulesCache.Load(rule.ObjectMeta.Name)
 	if !ok {
 		h.rulesCache.Store(rule.ObjectMeta.Name, rule)
-		glog.Infof("Rule '%s' was added", rule.ObjectMeta.Name)
+		klog.Infof("Rule '%s' was added", rule.ObjectMeta.Name)
 	} else {
 		existing := value.(*autoheal.HealingRule)
 		if rule.ObjectMeta.ResourceVersion != existing.ObjectMeta.ResourceVersion {
 			h.rulesCache.Store(rule.ObjectMeta.Name, rule)
-			glog.Infof("Rule '%s' was updated", rule.ObjectMeta.Name)
+			klog.Infof("Rule '%s' was updated", rule.ObjectMeta.Name)
 		}
 	}
 	return nil
@@ -95,7 +95,7 @@ func (h *Healer) processDeletedRule(rule *autoheal.HealingRule) error {
 	_, ok := h.rulesCache.Load(rule.ObjectMeta.Name)
 	if ok {
 		h.rulesCache.Delete(rule.ObjectMeta.Name)
-		glog.Infof("Rule '%s' was deleted", rule.ObjectMeta.Name)
+		klog.Infof("Rule '%s' was deleted", rule.ObjectMeta.Name)
 	}
 	return nil
 }

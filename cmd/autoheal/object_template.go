@@ -26,12 +26,11 @@ import (
 	"reflect"
 	"text/template"
 
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 )
 
 // ObjecTemplateBuilder is used to build object template processors. Don't instantiate it directly,
 // use the NewObjectTemplateBuilder method instead.
-//
 type ObjectTemplateBuilder struct {
 	// Delimiters:
 	right string
@@ -42,7 +41,6 @@ type ObjectTemplateBuilder struct {
 }
 
 // NewObjectTemplateBuilder creates a new buildr for object template processors.
-//
 func NewObjectTemplateBuilder() *ObjectTemplateBuilder {
 	b := new(ObjectTemplateBuilder)
 	b.right = "}}"
@@ -53,7 +51,6 @@ func NewObjectTemplateBuilder() *ObjectTemplateBuilder {
 // Delimiters sets the delimiters that will be used in the templates. By default the delimiters used
 // are the ones used in Go templates, {{ and }}. It is convenient to change them when processing
 // templates that contain that text, for example Ansible Playbooks.
-//
 func (b *ObjectTemplateBuilder) Delimiters(left, right string) *ObjectTemplateBuilder {
 	b.right = right
 	b.left = left
@@ -67,7 +64,6 @@ func (b *ObjectTemplateBuilder) Delimiters(left, right string) *ObjectTemplateBu
 //	{{ $labels := .Labels }}
 //
 // The syntax of the value is the same syntax used in Go templates for this kind of variables.
-//
 func (b *ObjectTemplateBuilder) Variable(name, value string) *ObjectTemplateBuilder {
 	if b.variables == nil {
 		b.variables = make(map[string]string)
@@ -77,7 +73,6 @@ func (b *ObjectTemplateBuilder) Variable(name, value string) *ObjectTemplateBuil
 }
 
 // Build creates a new template processor with the configuration stored in the builder.
-//
 func (b *ObjectTemplateBuilder) Build() (t *ObjectTemplate, err error) {
 	// Alocate the object:
 	t = new(ObjectTemplate)
@@ -103,7 +98,6 @@ func (b *ObjectTemplateBuilder) Build() (t *ObjectTemplate, err error) {
 //		Variable("labels", ".Labels").
 //		Variable("annotations", ".Annotations").
 //		Build()
-//
 type ObjectTemplate struct {
 	// Delimiters:
 	right string
@@ -116,15 +110,14 @@ type ObjectTemplate struct {
 // Process iterates the object recursively, and replaces all the fields or items that are strings
 // with the result of processing them as templates. The data for the template is taken from the data
 // parameter.
-//
 func (t *ObjectTemplate) Process(object interface{}, data interface{}) error {
 	kind := reflect.ValueOf(object).Kind()
 	if kind != reflect.Ptr {
-		return fmt.Errorf("Bad argument to function. object must be of pointer type, but type is %v", kind)
+		return fmt.Errorf("bad argument to function. object must be of pointer type, but type is %v", kind)
 	}
 
-	if glog.V(2) {
-		glog.Infof("Data: %v", data)
+	if klog.V(2).Enabled() {
+		klog.Infof("Data: %v", data)
 	}
 	_, err := t.processValue(reflect.ValueOf(object), data)
 
@@ -172,8 +165,8 @@ func (t *ObjectTemplate) processValue(input reflect.Value, data interface{}) (ou
 		case reflect.Interface:
 			output, err = t.processValue(reflect.ValueOf(output.Interface()), data)
 		default:
-			if glog.V(3) {
-				glog.Infof("Unsupported value kind '%s', skipping templating", output.Kind())
+			if klog.V(3).Enabled() {
+				klog.Infof("Unsupported value kind '%s', skipping templating", output.Kind())
 			}
 		}
 	}
@@ -183,8 +176,8 @@ func (t *ObjectTemplate) processValue(input reflect.Value, data interface{}) (ou
 func (t *ObjectTemplate) processString(value reflect.Value, data interface{}) (text string, err error) {
 	// Get the original text:
 	text = value.String()
-	if glog.V(3) {
-		glog.Infof("Original text:\n%s", text)
+	if klog.V(3).Enabled() {
+		klog.Infof("Original text:\n%s", text)
 	}
 
 	// Generate the template text:
@@ -194,8 +187,8 @@ func (t *ObjectTemplate) processString(value reflect.Value, data interface{}) (t
 	}
 	buffer.WriteString(text)
 	text = buffer.String()
-	if glog.V(3) {
-		glog.Infof("Generated template:\n%s", text)
+	if klog.V(3).Enabled() {
+		klog.Infof("Generated template:\n%s", text)
 	}
 
 	// Parse and run the template:
@@ -209,8 +202,8 @@ func (t *ObjectTemplate) processString(value reflect.Value, data interface{}) (t
 		return
 	}
 	text = buffer.String()
-	if glog.V(3) {
-		glog.Infof("Generated text:\n%s", text)
+	if klog.V(3).Enabled() {
+		klog.Infof("Generated text:\n%s", text)
 	}
 
 	return
