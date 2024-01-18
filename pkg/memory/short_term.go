@@ -26,14 +26,12 @@ import (
 )
 
 // ShortTermMemoryBuilder builds of short term memory objects.
-//
 type ShortTermMemoryBuilder struct {
 	// How long to remember actions.
 	duration time.Duration
 }
 
 // ShortTermMemory stores a set of items for a given period of time.
-//
 type ShortTermMemory struct {
 	// How long to remember actions.
 	duration time.Duration
@@ -47,7 +45,6 @@ type ShortTermMemory struct {
 }
 
 // ShortTermCell stores each individual action, and the time it was added to the memory.
-//
 type ShortTermCell struct {
 	// The item stored in the cell.
 	item interface{}
@@ -57,7 +54,6 @@ type ShortTermCell struct {
 }
 
 // NewShortTermMemoryBuilder creates a builder that can create short term memory objects.
-//
 func NewShortTermMemoryBuilder() *ShortTermMemoryBuilder {
 	b := new(ShortTermMemoryBuilder)
 	return b
@@ -65,24 +61,27 @@ func NewShortTermMemoryBuilder() *ShortTermMemoryBuilder {
 
 // Duration sets how long objects in the memory will be remembered. The default is zero, which means
 // that objects won't be remembered at all.
-//
 func (b *ShortTermMemoryBuilder) Duration(duration time.Duration) *ShortTermMemoryBuilder {
 	b.duration = duration
 	return b
 }
 
 // Build creates a new short term memory object with the configuration stored in the builder.
-//
 func (b *ShortTermMemoryBuilder) Build() (m *ShortTermMemory, err error) {
 	m = new(ShortTermMemory)
 	m.duration = b.duration
 	m.cells = make([]*ShortTermCell, 0)
 	m.mutex = &sync.Mutex{}
+	go func() {
+		tick := time.NewTicker(1 * time.Second).C
+		for range tick {
+			m.purgeExpiredCells()
+		}
+	}()
 	return
 }
 
 // Add adds a new item to the memory.
-//
 func (m *ShortTermMemory) Add(item interface{}) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -97,25 +96,19 @@ func (m *ShortTermMemory) Add(item interface{}) {
 }
 
 func (m *ShortTermMemory) Has(item interface{}) bool {
-
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	// Purge cells before checking.
-	m.purgeExpiredCells()
 	return m.findMatchingCell(item) != nil
 }
 
 // Len returns the number of items inside the memory.
-//
 func (m *ShortTermMemory) Len() int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.purgeExpiredCells()
 	return len(m.cells)
 }
 
 // purgeExpiredCells finds the aged cells and removes them.
-//
 func (m *ShortTermMemory) purgeExpiredCells() {
 	// The cells in ShortTermMemory are monotonously increasing - from "older" to "younger"
 	// thus, it suffices to check for until age < duration and then - break.
@@ -123,8 +116,8 @@ func (m *ShortTermMemory) purgeExpiredCells() {
 	for idx, cell := range m.cells {
 		age := now.Sub(cell.stamp)
 		if age >= m.duration {
-			// zeroing the value of the cell so that it wouldn't be refrenced by the underlying array
-			// causing GO's grabage collector to collect the allocated memory.
+			// zeroing the value of the cell so that it wouldn't be referenced by the underlying array
+			// causing GO's garbage collector to collect the allocated memory.
 			m.cells[idx] = nil
 			m.cells = append(m.cells[:idx], m.cells[idx+1:]...)
 		} else {
@@ -136,7 +129,6 @@ func (m *ShortTermMemory) purgeExpiredCells() {
 // findMatchingCell tries to find the cell that contains the given item and returs a pointer to that
 // cell or else nil if no such cell exists. Note that this method assumes that the mutex has already
 // been acquired and that the expired cells have already been purged.
-//
 func (m *ShortTermMemory) findMatchingCell(item interface{}) *ShortTermCell {
 	for _, cell := range m.cells {
 		if reflect.DeepEqual(item, cell.item) {
@@ -151,7 +143,6 @@ func (m *ShortTermMemory) Duration() time.Duration {
 }
 
 // Purge the expired cells from the short term memory cache.
-//
 func (m *ShortTermMemory) Clean() {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()

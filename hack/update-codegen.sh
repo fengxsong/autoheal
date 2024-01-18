@@ -14,8 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
-set -x
+
 set -o errexit
 set -o nounset
 set -o pipefail
@@ -34,6 +33,13 @@ CODEGEN_PKG="$GOPATH/pkg/mod/k8s.io/code-generator@${CODEGEN_VERSION}"
 source "${CODEGEN_PKG}/kube_codegen.sh"
 
 kube::codegen::gen_helpers \
-    --input-pkg-root github.com/openshift/autoheal \
+    --input-pkg-root github.com/openshift/autoheal/pkg/apis \
+    --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../.." \
+    --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt"
+
+kube::codegen::gen_client \
+    --with-watch \
+    --input-pkg-root github.com/openshift/autoheal/pkg/apis \
+    --output-pkg-root github.com/openshift/autoheal/pkg/generated \
     --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../.." \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt"

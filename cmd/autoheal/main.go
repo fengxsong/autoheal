@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -37,7 +36,7 @@ var rootCmd = &cobra.Command{
 var appName = "autoheal"
 
 func init() {
-	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
+	logs.AddFlags(rootCmd.PersistentFlags())
 	rootCmd.AddCommand(serverCmd)
 	rootCmd.AddCommand(versionCommand())
 }

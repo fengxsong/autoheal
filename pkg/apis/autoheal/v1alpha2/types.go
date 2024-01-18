@@ -26,6 +26,7 @@ import (
 	"github.com/openshift/autoheal/pkg/apis/extension"
 )
 
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // HealingRule is the description of an healing rule.
@@ -45,6 +46,10 @@ type HealingRule struct {
 	// they should match in order to activate the rule.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// A list of selector requirements by alert's labels.
+	// +optional
+	MatchExpressions []SelectorRequirement `json:"matchExpressions,omitempty"`
 
 	// AWXJob is the AWX job that will be executed when the rule is activated.
 	// +optional
@@ -79,4 +84,30 @@ type HealingRuleList struct {
 	meta.ListMeta `json:"metadata,inline"`
 
 	Items []HealingRule `json:"items,omitempty"`
+}
+
+type SelectorOperator string
+
+const (
+	SelectorOpIn           SelectorOperator = "In"
+	SelectorOpNotIn        SelectorOperator = "NotIn"
+	SelectorOpExists       SelectorOperator = "Exists"
+	SelectorOpDoesNotExist SelectorOperator = "DoesNotExist"
+	SelectorOpGt           SelectorOperator = "Gt"
+	SelectorOpLt           SelectorOperator = "Lt"
+)
+
+type SelectorRequirement struct {
+	// The label key that the selector applies to.
+	Key string `json:"key"`
+	// Represents a key's relationship to a set of values.
+	// Valid operators are In, NotIn, Exists, DoesNotExist. Gt, and Lt.
+	Operator SelectorOperator `json:"operator"`
+	// An array of string values. If the operator is In or NotIn,
+	// the values array must be non-empty. If the operator is Exists or DoesNotExist,
+	// the values array must be empty. If the operator is Gt or Lt, the values
+	// array must have a single element, which will be interpreted as an integer.
+	// This array is replaced during a strategic merge patch.
+	// +optional
+	Values []string `json:"values,omitempty"`
 }

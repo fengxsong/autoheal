@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/syncmap"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 
@@ -38,6 +40,8 @@ import (
 	"github.com/openshift/autoheal/pkg/awxrunner"
 	"github.com/openshift/autoheal/pkg/batchrunner"
 	"github.com/openshift/autoheal/pkg/config"
+	"github.com/openshift/autoheal/pkg/generated/clientset/versioned"
+	informers "github.com/openshift/autoheal/pkg/generated/informers/externalversions"
 	"github.com/openshift/autoheal/pkg/memory"
 	"github.com/openshift/autoheal/pkg/metrics"
 )
@@ -48,7 +52,8 @@ type HealerBuilder struct {
 	configFiles []string
 
 	// Kubernetes client.
-	k8sClient kubernetes.Interface
+	k8sClient    kubernetes.Interface
+	healerClient versioned.Interface
 }
 
 // Healer contains the information needed to receive notifications about changes in the
@@ -56,12 +61,14 @@ type HealerBuilder struct {
 type Healer struct {
 	// The configuration.
 	config *config.Config
+	// autoheal custom resource clientset
+	client versioned.Interface
 
 	// Kubernetes client.
 	k8sClient kubernetes.Interface
 
 	// The current set of healing rules.
-	rulesCache *syncmap.Map
+	rulesCache *sync.Map
 
 	// We use two queues, one to process updates to the rules and another to process incoming
 	// notifications from the alert manager:
@@ -73,6 +80,9 @@ type Healer struct {
 
 	// a map of ActionRunner which run awx/batch/etc actions.
 	actionRunners map[ActionRunnerType]ActionRunner
+
+	informerFactory informers.SharedInformerFactory
+	hrInformer      cache.SharedIndexInformer
 }
 
 // NewHealerBuilder creates a new builder for healers.
@@ -104,6 +114,11 @@ func (b *HealerBuilder) KubernetesClient(client kubernetes.Interface) *HealerBui
 	return b
 }
 
+func (b *HealerBuilder) HealerClient(client versioned.Interface) *HealerBuilder {
+	b.healerClient = client
+	return b
+}
+
 // Build creates the healer using the configuration stored in the builder.
 func (b *HealerBuilder) Build() (h *Healer, err error) {
 	var cfg *config.Config
@@ -131,6 +146,7 @@ func (b *HealerBuilder) Build() (h *Healer, err error) {
 
 	// Allocate the healer:
 	h = new(Healer)
+	h.client = b.healerClient
 	h.k8sClient = b.k8sClient
 	h.config = cfg
 	h.actionMemory = actionMemory
@@ -139,11 +155,24 @@ func (b *HealerBuilder) Build() (h *Healer, err error) {
 	h.rulesCache = new(syncmap.Map)
 
 	// Create the queues:
-	h.rulesQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rules")
-	h.alertsQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alerts")
+	h.rulesQueue = workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultControllerRateLimiter(),
+		workqueue.RateLimitingQueueConfig{Name: "rules"},
+	)
+	h.alertsQueue = workqueue.NewRateLimitingQueueWithConfig(
+		workqueue.DefaultControllerRateLimiter(),
+		workqueue.RateLimitingQueueConfig{Name: "alerts"},
+	)
 
 	// allocate new action runners
 	h.actionRunners = make(map[ActionRunnerType]ActionRunner)
+	h.informerFactory = informers.NewSharedInformerFactory(h.client, 0)
+	h.hrInformer = h.informerFactory.Autoheal().V1alpha2().HealingRules().Informer()
+	h.hrInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    func(obj interface{}) { h.enqueue(watch.Added, obj) },
+		UpdateFunc: func(_, newObj interface{}) { h.enqueue(watch.Modified, newObj) },
+		DeleteFunc: func(obj interface{}) { h.enqueue(watch.Deleted, obj) },
+	})
 
 	return
 }
@@ -154,6 +183,11 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 	defer h.rulesQueue.ShutDown()
 	defer h.alertsQueue.ShutDown()
 	defer h.config.ShutDown()
+
+	h.informerFactory.Start(stopCh)
+	if ok := cache.WaitForCacheSync(stopCh, h.hrInformer.HasSynced); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
 
 	// Start the workers:
 	go wait.Until(h.runRulesWorker, time.Second, stopCh)
@@ -262,8 +296,7 @@ func (h *Healer) handleRequest(response http.ResponseWriter, request *http.Reque
 
 	// Parse the JSON request body:
 	message := new(alertmanager.Message)
-	json.Unmarshal(body, message)
-	if err != nil {
+	if err = json.Unmarshal(body, message); err != nil {
 		klog.Warningf("Can't parse request body: %s", err)
 		http.Error(
 			response,

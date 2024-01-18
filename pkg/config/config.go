@@ -25,9 +25,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ghodss/yaml"
 	"github.com/yaacov/observer/observer"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/yaml"
 
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/internal/data"

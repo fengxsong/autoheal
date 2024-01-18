@@ -28,6 +28,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift/autoheal/pkg/generated/clientset/versioned"
 	"github.com/openshift/autoheal/pkg/metrics"
 	"github.com/openshift/autoheal/pkg/signals"
 )
@@ -146,11 +147,16 @@ func serverRun(cmd *cobra.Command, args []string) {
 	if err != nil {
 		klog.Fatalf("Error building Kubernetes API client: %s", err.Error())
 	}
+	client, err := versioned.NewForConfig(config)
+	if err != nil {
+		klog.Fatalf("Error building autoheal API client: %s", err.Error())
+	}
 
 	// Build the healer:
 	healer, err := NewHealerBuilder().
 		ConfigFiles(serverConfigFiles).
 		KubernetesClient(k8sClient).
+		HealerClient(client).
 		Build()
 	if err != nil {
 		klog.Fatalf("Error building healer: %s", err.Error())

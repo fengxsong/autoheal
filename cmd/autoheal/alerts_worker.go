@@ -143,7 +143,13 @@ func (h *Healer) checkRule(rule *autoheal.HealingRule, alert *alertmanager.Alert
 	if !matches || err != nil {
 		return
 	}
-	return
+	for i := range rule.MatchExpressions {
+		match := rule.MatchExpressions[i].Match(alert.Labels)
+		if !match {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func (h *Healer) checkMap(values, patterns map[string]string) (result bool, err error) {

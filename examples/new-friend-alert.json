@@ -6,7 +6,8 @@
       "status": "firing",
       "labels": {
         "alertname": "NewFriend",
-        "friend": "Mary",
+        "friend": "Tom",
+        "name": "Mary",
         "job": "friend"
       },
       "annotations": {
@@ -30,5 +31,5 @@
   },
   "externalURL": "http://prometheus-4009290065-k2sh7:9093",
   "version": "4",
-  "groupKey": "{}:{alertname=\"new-friend\"}"
+  "groupKey": "{}:{alertname='new-friend'}"
 }

@@ -51,7 +51,7 @@ type Alert struct {
 	Annotations  map[string]string `json:"annotations,omitempty"`
 	StartsAt     time.Time         `json:"startsAt,omitempty"`
 	EndsAt       time.Time         `json:"endsAt,omitempty"`
-	GeneratorURL time.Time         `json:"generatorURL,omitempty"`
+	GeneratorURL string            `json:"generatorURL,omitempty"`
 }
 
 // Name returns the name of the alert.

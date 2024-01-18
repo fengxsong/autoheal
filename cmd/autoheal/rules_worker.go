@@ -22,6 +22,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
+	"github.com/openshift/autoheal/pkg/apis/autoheal/v1alpha2"
 )
 
 func (h *Healer) runRulesWorker() {
@@ -62,6 +63,20 @@ func (h *Healer) pickRuleChange() bool {
 	}
 
 	return true
+}
+
+func (h *Healer) enqueue(et watch.EventType, obj interface{}) {
+	rule, ok := obj.(*v1alpha2.HealingRule)
+	if !ok {
+		klog.Errorf("unexpected type %T", obj)
+		return
+	}
+	var out autoheal.HealingRule
+	if err := v1alpha2.Convert_v1alpha2_HealingRule_To_autoheal_HealingRule(rule, &out, nil); err != nil {
+		klog.Errorf("can't convert to internal version: %v", err)
+	} else {
+		h.rulesQueue.Add(&RuleChange{et, &out})
+	}
 }
 
 func (h *Healer) processRuleChange(change *RuleChange) error {
