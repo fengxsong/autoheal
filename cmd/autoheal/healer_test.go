@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 	"time"
@@ -575,7 +576,7 @@ type FakeActionRunner struct {
 	RuleAlertMap map[string]*alertmanager.Alert
 }
 
-func (f FakeActionRunner) RunAction(rule *autoheal.HealingRule, action interface{}, alert *alertmanager.Alert) error {
+func (f FakeActionRunner) RunAction(_ context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	klog.Infof("Fake ActionRunner called with rule '%s' and alert '%s'",
 		rule.ObjectMeta.Name,
 		alert.Name(),

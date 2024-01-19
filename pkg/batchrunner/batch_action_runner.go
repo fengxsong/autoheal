@@ -18,7 +18,6 @@ package batchrunner
 
 import (
 	"context"
-	"fmt"
 
 	alertmanager "github.com/openshift/autoheal/pkg/alertmanager"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
@@ -53,40 +52,19 @@ func (b *Builder) Build() (*Runner, error) {
 	return runner, nil
 }
 
-func (r *Runner) RunAction(rule *autoheal.HealingRule, action interface{}, alert *alertmanager.Alert) error {
-	batchJob := action.(*batch.Job)
+func (r *Runner) RunAction(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
+	batchJobSpec := rule.BatchJob.DeepCopy()
 
-	klog.Infof(
-		"Running batch job '%s' to heal alert '%s'",
-		batchJob.ObjectMeta.Name,
-		alert.Labels["alertname"],
-	)
-
-	// The name of the job is mandatory:
-	name := batchJob.ObjectMeta.Name
-	generateName := batchJob.ObjectMeta.GenerateName
-	if name == "" && generateName == "" {
-		return fmt.Errorf(
-			"can't create job for rule '%s', the name or generateName hasn't been specified",
-			rule.ObjectMeta.Name,
-		)
+	klog.Infof("Running batch job to heal alert '%s'", alert.Labels["alertname"])
+	resource := r.k8sClient.BatchV1().Jobs(rule.Namespace)
+	batchJob := batch.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: rule.ObjectMeta.Name + "-",
+			// TODO: set ownerreference
+		},
+		Spec: *batchJobSpec,
 	}
-
-	// The namespace of the job is optional, the default is the namespace of the rule:
-	namespace := batchJob.ObjectMeta.Namespace
-	if namespace == "" {
-		namespace = rule.ObjectMeta.Namespace
-	}
-
-	// Get the resource that manages the collection of batch jobs:
-	resource := r.k8sClient.BatchV1().Jobs(namespace)
-
-	// Try to create the job:
-	batchJob = batchJob.DeepCopy()
-	batchJob.ObjectMeta.Name = name
-	batchJob.ObjectMeta.GenerateName = generateName
-	batchJob.ObjectMeta.Namespace = namespace
-	_, err := resource.Create(context.Background(), batchJob, metav1.CreateOptions{})
+	_, err := resource.Create(ctx, &batchJob, metav1.CreateOptions{})
 	if errors.IsAlreadyExists(err) {
 		klog.Warningf(
 			"Batch job '%s' already exists, will do nothing to heal alert '%s'",
@@ -97,8 +75,8 @@ func (r *Runner) RunAction(rule *autoheal.HealingRule, action interface{}, alert
 		return err
 	} else {
 		klog.Infof(
-			"Batch job '%s' to heal alert '%s' has been created",
-			batchJob.ObjectMeta.Name,
+			"Batch job with generateName '%s' to heal alert '%s' has been created",
+			batchJob.ObjectMeta.GenerateName,
 			alert.Labels["alertname"],
 		)
 	}

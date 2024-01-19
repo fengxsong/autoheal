@@ -20,6 +20,7 @@ limitations under the License.
 package autoheal
 
 import (
+	"net/http"
 	"slices"
 
 	batch "k8s.io/api/batch/v1"
@@ -30,24 +31,24 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:defaulter-gen=true
 
-// HealingRule is the description of an healing rule.
 type HealingRule struct {
-	meta.TypeMeta
+	meta.TypeMeta `json:",inline"`
 
 	// Standard object metadata.
 	// +optional
-	meta.ObjectMeta
+	meta.ObjectMeta `json:"metadata,omitempty"`
 
 	// Labels is map containing the names of the labels and the regular expressions that they should
 	// match in order to activate the rule.
 	// +optional
-	Labels map[string]string
+	Labels map[string]string `json:"labels,omitempty"`
 
 	// Annotations is map containing the names of the annotations and the regular expressions that
 	// they should match in order to activate the rule.
 	// +optional
-	Annotations map[string]string
+	Annotations map[string]string `json:"annotations,omitempty"`
 
 	// A list of selector requirements by alert's labels.
 	// +optional
@@ -55,27 +56,55 @@ type HealingRule struct {
 
 	// AWXJob is the AWX job that will be executed when the rule is activated.
 	// +optional
-	AWXJob *AWXJobAction
+	AWXJob *AWXJobAction `json:"awxJob,omitempty"`
 
 	// BatchJob is the batch job that will be executed when the rule is activated.
 	// +optional
-	BatchJob *batch.Job
+	BatchJob *batch.JobSpec `json:"batchJob,omitempty"`
+
+	// Webhook will trigger the webhook with predefined payloads
+	// +optional
+	Webhook *Webhook `json:"webhook,omitempty"`
+
+	// +optional
+	// +default=true
+	DisableForResolvedMessage *bool `json:"disableForResolvedMessage,omitempty"`
 }
 
 // AWXJobAction describes how to run an Ansible AWX job.
 type AWXJobAction struct {
 	// Template is the name of the AWX job template that will be launched.
 	// +optional
-	Template string
+	Template string `json:"template,omitempty"`
 
 	// ExtraVars are the extra variables that will be passed to job.
 	// +optional
-	ExtraVars *extension.AnyConfig
+	ExtraVars *extension.AnyConfig `json:"extraVars,omitempty"`
 
 	// Limit is a pattern that will be passed to the job to constrain
 	// the hosts that will be affected by the playbook.
 	// +optional
-	Limit string
+	Limit string `json:"limit,omitempty"`
+}
+
+type Webhook struct {
+	URL string `json:"url"`
+	// +optional
+	Method string `json:"method,omitempty"`
+	// +optional
+	Headers http.Header `json:"headers,omitempty"`
+	// +optional
+	BasicAuth *BasicAuth `json:"basicAuth,omitempty"`
+	// +optional
+	Template string `json:"template,omitempty"`
+	// +optional
+	Proxy string `json:"proxy,omitempty"`
+}
+
+type BasicAuth struct {
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+	SecretName string `json:"secretName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -125,8 +154,9 @@ func (s SelectorRequirement) Match(labels map[string]string) bool {
 	case SelectorOpExists:
 		_, ok := labels[s.Key]
 		return ok
-	case SelectorOpGt:
-	case SelectorOpLt:
+	case SelectorOpGt, SelectorOpLt:
+		// not yet supported
+		return false
 	}
 	return false
 }

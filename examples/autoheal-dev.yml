@@ -27,34 +27,12 @@ throttling:
   interval: 5s
 
 rules:
-- metadata:
-    name: start-node
-  labels:
-    alertname: "NodeDown"
-  awxJob:
-    template: "Start node"
-    extraVars:
-      node: "{{ $labels.instance }}"
-    limit:  "{{ $labels.instance }}"
-
-- metadata:
-    name: say-hello
-  labels:
-    alertname: "NewFriend"
-  batchJob:
-    apiVersion: batch/v1
-    kind: Job
-    metadata:
-      namespace: default
-      name: hello
-    spec:
-      template:
-        spec:
-          containers:
-          - name: python
-            image: python
-            command:
-            - python
-            - -c
-            - print("Hello {{ $labels.name }}!")
-          restartPolicy: Never
+  - metadata:
+      name: start-node
+    labels:
+      alertname: "NodeDown"
+    awxJob:
+      template: "Start node"
+      extraVars:
+        node: "{{ $labels.instance }}"
+      limit: "{{ $labels.instance }}"

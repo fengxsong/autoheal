@@ -27,6 +27,7 @@ import (
 	"text/template"
 
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/yaml"
 )
 
 // ObjecTemplateBuilder is used to build object template processors. Don't instantiate it directly,
@@ -115,95 +116,47 @@ func (t *ObjectTemplate) Process(object interface{}, data interface{}) error {
 	if kind != reflect.Ptr {
 		return fmt.Errorf("bad argument to function. object must be of pointer type, but type is %v", kind)
 	}
-
-	if klog.V(2).Enabled() {
-		klog.Infof("Data: %v", data)
-	}
-	_, err := t.processValue(reflect.ValueOf(object), data)
-
-	return err
+	return t.process(object, data)
 }
 
-func (t *ObjectTemplate) processValue(input reflect.Value, data interface{}) (output reflect.Value, err error) {
-	output = input
-	if output.IsValid() {
-		switch output.Kind() {
-		case reflect.String:
-			text, err := t.processString(output, data)
-			if err == nil {
-				output = reflect.ValueOf(text)
-
-				// update settable values in place
-				if input.CanSet() {
-					input.SetString(text)
-				}
-			}
-		case reflect.Array:
-			// Not implemented yet.
-		case reflect.Slice:
-			// Not implemented yet.
-		case reflect.Map:
-			for _, k := range output.MapKeys() {
-				var v reflect.Value
-				v, err = t.processValue(output.MapIndex(k), data)
-				if err != nil {
-					return
-				}
-
-				// update the processed value in the map
-				output.SetMapIndex(k, v)
-			}
-		case reflect.Struct:
-			for i, n := 0, output.NumField(); i < n && err == nil; i++ {
-				_, err = t.processValue(output.Field(i), data)
-				if err != nil {
-					return
-				}
-			}
-		case reflect.Ptr:
-			output, err = t.processValue(output.Elem(), data)
-		case reflect.Interface:
-			output, err = t.processValue(reflect.ValueOf(output.Interface()), data)
-		default:
-			if klog.V(3).Enabled() {
-				klog.Infof("Unsupported value kind '%s', skipping templating", output.Kind())
-			}
-		}
+func (t *ObjectTemplate) process(input interface{}, data interface{}) error {
+	tmp, err := yaml.Marshal(input)
+	if err != nil {
+		return err
 	}
-	return
+	raw, err := t.processString(string(tmp), data)
+	if err != nil {
+		return err
+	}
+	return yaml.Unmarshal(raw, input)
 }
 
-func (t *ObjectTemplate) processString(value reflect.Value, data interface{}) (text string, err error) {
-	// Get the original text:
-	text = value.String()
-	if klog.V(3).Enabled() {
-		klog.Infof("Original text:\n%s", text)
+func (t *ObjectTemplate) processString(input string, data interface{}) (out []byte, err error) {
+	if klog.V(4).Enabled() {
+		klog.Infof("Original text:\n%s", input)
 	}
-
-	// Generate the template text:
 	buffer := new(bytes.Buffer)
 	for name, value := range t.variables {
 		fmt.Fprintf(buffer, "%s $%s := %s %s", t.left, name, value, t.right)
 	}
-	buffer.WriteString(text)
-	text = buffer.String()
-	if klog.V(3).Enabled() {
-		klog.Infof("Generated template:\n%s", text)
-	}
+	buffer.WriteString(input)
+	text := buffer.String()
 
-	// Parse and run the template:
-	tmpl, err := template.New("").Delims(t.left, t.right).Parse(text)
+	tmpl, err := template.New("").Parse(text)
 	if err != nil {
 		return
 	}
 	buffer.Reset()
+	if klog.V(4).Enabled() {
+		klog.Infof("Data: %#v", data)
+	}
 	err = tmpl.Execute(buffer, data)
 	if err != nil {
 		return
 	}
-	text = buffer.String()
-	if klog.V(3).Enabled() {
-		klog.Infof("Generated text:\n%s", text)
+	out = buffer.Bytes()
+	if klog.V(4).Enabled() {
+		klog.Infof("Generated text:\n%s", string(out))
 	}
 
 	return

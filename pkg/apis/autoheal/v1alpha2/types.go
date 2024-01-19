@@ -20,6 +20,8 @@ limitations under the License.
 package v1alpha2
 
 import (
+	"net/http"
+
 	batch "k8s.io/api/batch/v1"
 	meta "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -28,6 +30,7 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +k8s:defaulter-gen=true
 
 // HealingRule is the description of an healing rule.
 type HealingRule struct {
@@ -57,7 +60,15 @@ type HealingRule struct {
 
 	// BatchJob is the batch job that will be executed when the rule is activated.
 	// +optional
-	BatchJob *batch.Job `json:"batchJob,omitempty"`
+	BatchJob *batch.JobSpec `json:"batchJob,omitempty"`
+
+	// Webhook will trigger the webhook with predefined payloads
+	// +optional
+	Webhook *Webhook `json:"webhook,omitempty"`
+
+	// +optional
+	// +default=true
+	DisableForResolvedMessage *bool `json:"disableForResolvedMessage,omitempty"`
 }
 
 // AWXJobAction describes how to run an Ansible AWX job.
@@ -74,6 +85,26 @@ type AWXJobAction struct {
 	// the hosts that will be affected by the playbook.
 	// +optional
 	Limit string `json:"limit,omitempty"`
+}
+
+type Webhook struct {
+	URL string `json:"url"`
+	// +optional
+	Method string `json:"method,omitempty"`
+	// +optional
+	Headers http.Header `json:"headers,omitempty"`
+	// +optional
+	BasicAuth *BasicAuth `json:"basicAuth,omitempty"`
+	// +optional
+	Template string `json:"template,omitempty"`
+	// +optional
+	Proxy string `json:"proxy,omitempty"`
+}
+
+type BasicAuth struct {
+	Username   string `json:"username,omitempty"`
+	Password   string `json:"password,omitempty"`
+	SecretName string `json:"secretName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -17,16 +17,16 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
+	"context"
 	"reflect"
 	"regexp"
+
+	"k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/autoheal/pkg/alertmanager"
 	"github.com/openshift/autoheal/pkg/apis/autoheal"
 	"github.com/openshift/autoheal/pkg/metrics"
-	batch "k8s.io/api/batch/v1"
-	"k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/klog/v2"
 )
 
 func (h *Healer) runAlertsWorker() {
@@ -72,9 +72,9 @@ func (h *Healer) pickAlert() bool {
 func (h *Healer) processAlert(alert *alertmanager.Alert) error {
 	switch alert.Status {
 	case alertmanager.AlertStatusFiring:
-		return h.startHealing(alert)
+		return h.startHealing(context.Background(), alert)
 	case alertmanager.AlertStatusResolved:
-		return h.cancelHealing(alert)
+		return h.cancelHealing(context.Background(), alert)
 	default:
 		klog.Warningf(
 			"Unknown status '%s' reported by alert manager, will ignore it",
@@ -84,9 +84,8 @@ func (h *Healer) processAlert(alert *alertmanager.Alert) error {
 	}
 }
 
-// startHealing starts the healing process for the given alert.
-func (h *Healer) startHealing(alert *alertmanager.Alert) error {
-	// Find the rules that are activated for the alert:
+func (h *Healer) filterActivated(alert *alertmanager.Alert) []*autoheal.HealingRule {
+	// Find the rules that are activated for the alert
 	activated := make([]*autoheal.HealingRule, 0)
 	h.rulesCache.Range(func(_, value interface{}) bool {
 		rule := value.(*autoheal.HealingRule)
@@ -108,14 +107,19 @@ func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 		}
 		return true
 	})
+	return activated
+}
+
+// startHealing starts the healing process for the given alert.
+func (h *Healer) startHealing(ctx context.Context, alert *alertmanager.Alert) error {
+	activated := h.filterActivated(alert)
 	if len(activated) == 0 {
 		klog.Infof("No rule matches alert '%s'", alert.Name())
 		return nil
 	}
-
-	// Execute the activated rules:
+	// Execute the activated rules
 	for _, rule := range activated {
-		err := h.runRule(rule, alert)
+		err := h.runRule(ctx, rule, alert)
 		if err != nil {
 			return err
 		}
@@ -125,7 +129,7 @@ func (h *Healer) startHealing(alert *alertmanager.Alert) error {
 }
 
 // cancelHealing cancels the healing process for the given alert.
-func (h *Healer) cancelHealing(alert *alertmanager.Alert) error {
+func (h *Healer) cancelHealing(_ context.Context, alert *alertmanager.Alert) error {
 	return nil
 }
 
@@ -173,7 +177,7 @@ func (h *Healer) checkMap(values, patterns map[string]string) (result bool, err 
 	return
 }
 
-func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
+func (h *Healer) runRule(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	// Send the name of the rule to the log:
 	klog.Infof(
 		"Running rule '%s' for alert '%s'",
@@ -188,6 +192,8 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 		action = rule.AWXJob.DeepCopy()
 	} else if rule.BatchJob != nil {
 		action = rule.BatchJob.DeepCopy()
+	} else if rule.Webhook != nil {
+		action = rule.Webhook.DeepCopy()
 	} else {
 		klog.Warningf(
 			"There are no action details, rule '%s' will have no effect on alert '%s'",
@@ -204,6 +210,7 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 		alert.Labels["alertname"],
 	)
 
+	rule = rule.DeepCopy()
 	// Process the templates inside the action:
 	template, err := NewObjectTemplateBuilder().
 		Variable("alert", ".").
@@ -213,7 +220,7 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 	if err != nil {
 		return err
 	}
-	err = template.Process(action, alert)
+	err = template.Process(rule, alert)
 	if err != nil {
 		return err
 	}
@@ -228,17 +235,12 @@ func (h *Healer) runRule(rule *autoheal.HealingRule, alert *alertmanager.Alert) 
 		return nil
 	}
 
-	// Execute the action:
-	switch typed := action.(type) {
-	case *autoheal.AWXJobAction:
-		err = h.actionRunners[ActionRunnerTypeAWX].RunAction(rule, typed, alert)
-	case *batch.Job:
-		err = h.actionRunners[ActionRunnerTypeBatch].RunAction(rule, typed, alert)
-	default:
-		err = fmt.Errorf(
-			"don't know how to execute action of type '%T'",
-			typed,
-		)
+	// Execute the action
+	// TODO: refactor to factory builder
+	for _, runner := range h.actionRunners {
+		if err = runner.RunAction(ctx, rule, alert); err != nil {
+			return err
+		}
 	}
 
 	// Remember that the action was executed recently, even if the execution failed:

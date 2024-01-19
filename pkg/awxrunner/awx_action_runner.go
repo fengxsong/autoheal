@@ -17,6 +17,7 @@ limitations under the License.
 package awxrunner
 
 import (
+	"context"
 	"fmt"
 
 	"golang.org/x/sync/syncmap"
@@ -65,9 +66,9 @@ func (b *Builder) Build() (*Runner, error) {
 	return runner, nil
 }
 
-func (r *Runner) RunAction(rule *autoheal.HealingRule, action interface{}, alert *alertmanager.Alert) error {
+func (r *Runner) RunAction(_ context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	var err error
-	awxAction := action.(*autoheal.AWXJobAction)
+	awxAction := rule.AWXJob.DeepCopy()
 	// Get the AWX connection details from the configuration:
 	awxAddress := r.config.Address()
 	awxProxy := r.config.Proxy()

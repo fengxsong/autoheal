@@ -1,11 +1,17 @@
 kind: HealingRule
 apiVersion: autoheal.openshift.io/v1alpha2
 metadata:
-  name: start-node-test
+  name: say-hello
 labels:
-  alertname: "NodeDown"
-awxJob:
-  template: "Start node"
-  extraVars:
-    node: "{{ $labels.instance }}"
-  limit: "{{ $labels.instance }}"
+  alertname: "NewFriend"
+batchJob:
+  template:
+    spec:
+      containers:
+        - name: python
+          image: python
+          command:
+            - python
+            - -c
+            - print("Hello {{ $labels.name }}!")
+      restartPolicy: Never

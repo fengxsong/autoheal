@@ -17,6 +17,8 @@ limitations under the License.
 package main
 
 import (
+	"context"
+
 	alertmanager "github.com/openshift/autoheal/pkg/alertmanager"
 	autoheal "github.com/openshift/autoheal/pkg/apis/autoheal"
 )
@@ -26,8 +28,9 @@ type ActionRunnerType int
 const (
 	ActionRunnerTypeAWX ActionRunnerType = iota
 	ActionRunnerTypeBatch
+	ActionRunnerTypeWebhook
 )
 
 type ActionRunner interface {
-	RunAction(rule *autoheal.HealingRule, action interface{}, alert *alertmanager.Alert) error
+	RunAction(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error
 }

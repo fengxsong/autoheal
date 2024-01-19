@@ -44,6 +44,7 @@ import (
 	informers "github.com/openshift/autoheal/pkg/generated/informers/externalversions"
 	"github.com/openshift/autoheal/pkg/memory"
 	"github.com/openshift/autoheal/pkg/metrics"
+	"github.com/openshift/autoheal/pkg/webhookrunner"
 )
 
 // HealerBuilder is used to create new healers.
@@ -193,7 +194,7 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 	go wait.Until(h.runRulesWorker, time.Second, stopCh)
 	go wait.Until(h.runAlertsWorker, time.Second, stopCh)
 
-	// Start action runners
+	// initialize runners.
 	awxRunner, err := awxrunner.NewBuilder().
 		Config(h.config.AWX()).
 		StopCh(stopCh).
@@ -201,6 +202,8 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 
 	if err != nil {
 		klog.Warningf("Error building AWX runner: %s", err)
+	} else {
+		h.actionRunners[ActionRunnerTypeAWX] = awxRunner
 	}
 
 	batchRunner, err := batchrunner.NewBuilder().
@@ -209,11 +212,12 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 
 	if err != nil {
 		klog.Warningf("Error building batch runner: %s", err)
+	} else {
+		h.actionRunners[ActionRunnerTypeBatch] = batchRunner
 	}
 
-	// initialize runners.
-	h.actionRunners[ActionRunnerTypeAWX] = awxRunner
-	h.actionRunners[ActionRunnerTypeBatch] = batchRunner
+	// TODO: create webhook runner with parameters, like http.Client, k8sclient..
+	h.actionRunners[ActionRunnerTypeWebhook] = &webhookrunner.Runner{}
 
 	klog.Info("Workers started")
 
