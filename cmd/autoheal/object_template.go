@@ -26,9 +26,16 @@ import (
 	"reflect"
 	"text/template"
 
+	"github.com/Masterminds/sprig/v3"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
 )
+
+var defaultTpl *template.Template
+
+func init() {
+	defaultTpl = template.New("gotpl").Funcs(sprig.TxtFuncMap())
+}
 
 // ObjecTemplateBuilder is used to build object template processors. Don't instantiate it directly,
 // use the NewObjectTemplateBuilder method instead.
@@ -142,7 +149,7 @@ func (t *ObjectTemplate) processString(input string, data interface{}) (out []by
 	buffer.WriteString(input)
 	text := buffer.String()
 
-	tmpl, err := template.New("").Parse(text)
+	tmpl, err := defaultTpl.Parse(text)
 	if err != nil {
 		return
 	}
