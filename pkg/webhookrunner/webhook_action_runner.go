@@ -17,6 +17,10 @@ type Runner struct {
 	client *http.Client
 }
 
+func (r *Runner) OnAction(rule *autoheal.HealingRule, _ *alertmanager.Alert) any {
+	return rule.Webhook
+}
+
 func (r *Runner) RunAction(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	klog.Infof("Trigger webhook to heal alert '%s'", alert.Labels["alertname"])
 	action := rule.Webhook.DeepCopy()

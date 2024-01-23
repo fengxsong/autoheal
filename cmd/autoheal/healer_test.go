@@ -467,7 +467,7 @@ func TestEmptyRuleMatchesAlertWithAnnotation(t *testing.T) {
 func TestHealerActionMemory(t *testing.T) {
 	healer := makeHealer(t, "empty")
 	defer runtime.HandleCrash()
-	healer.actionRunners[ActionRunnerTypeAWX] = FakeActionRunner{
+	healer.actionRunners[ActionRunnerTypeAWX] = &FakeActionRunner{
 		RuleAlertMap: make(map[string]*alertmanager.Alert),
 	}
 	rule := &autoheal.HealingRule{
@@ -517,7 +517,7 @@ func TestHealerActionMemoryDisabled(t *testing.T) {
 	// disable actionMemory.
 	duration, _ := time.ParseDuration("0")
 	healer.actionMemory, _ = memory.NewShortTermMemoryBuilder().Duration(duration).Build()
-	healer.actionRunners[ActionRunnerTypeAWX] = FakeActionRunner{
+	healer.actionRunners[ActionRunnerTypeAWX] = &FakeActionRunner{
 		RuleAlertMap: make(map[string]*alertmanager.Alert),
 	}
 	rule := &autoheal.HealingRule{
@@ -574,6 +574,10 @@ func makeHealer(t *testing.T, name string) *Healer {
 
 type FakeActionRunner struct {
 	RuleAlertMap map[string]*alertmanager.Alert
+}
+
+func (f *FakeActionRunner) OnAction(rule *autoheal.HealingRule, _ *alertmanager.Alert) any {
+	return f.RuleAlertMap
 }
 
 func (f FakeActionRunner) RunAction(_ context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {

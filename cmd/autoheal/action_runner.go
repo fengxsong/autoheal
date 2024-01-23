@@ -33,4 +33,5 @@ const (
 
 type ActionRunner interface {
 	RunAction(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error
+	OnAction(rule *autoheal.HealingRule, _ *alertmanager.Alert) any
 }

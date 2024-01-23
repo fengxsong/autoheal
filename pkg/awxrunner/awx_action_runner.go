@@ -66,6 +66,10 @@ func (b *Builder) Build() (*Runner, error) {
 	return runner, nil
 }
 
+func (r *Runner) OnAction(rule *autoheal.HealingRule, _ *alertmanager.Alert) any {
+	return rule.AWXJob
+}
+
 func (r *Runner) RunAction(_ context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	var err error
 	awxAction := rule.AWXJob.DeepCopy()

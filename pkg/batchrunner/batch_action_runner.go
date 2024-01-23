@@ -52,9 +52,12 @@ func (b *Builder) Build() (*Runner, error) {
 	return runner, nil
 }
 
+func (r *Runner) OnAction(rule *autoheal.HealingRule, _ *alertmanager.Alert) any {
+	return rule.BatchJob
+}
+
 func (r *Runner) RunAction(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
 	batchJobSpec := rule.BatchJob.DeepCopy()
-
 	klog.Infof("Running batch job to heal alert '%s'", alert.Labels["alertname"])
 	resource := r.k8sClient.BatchV1().Jobs(rule.Namespace)
 	batchJob := batch.Job{

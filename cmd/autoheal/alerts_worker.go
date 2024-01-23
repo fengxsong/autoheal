@@ -178,36 +178,10 @@ func (h *Healer) checkMap(values, patterns map[string]string) (result bool, err 
 }
 
 func (h *Healer) runRule(ctx context.Context, rule *autoheal.HealingRule, alert *alertmanager.Alert) error {
-	// Send the name of the rule to the log:
 	klog.Infof(
 		"Running rule '%s' for alert '%s'",
 		rule.ObjectMeta.Name,
 		alert.Name(),
-	)
-
-	// Make a copy of the action so that we can modify it without affecting the rule stored in the
-	// cache:
-	var action interface{}
-	if rule.AWXJob != nil {
-		action = rule.AWXJob.DeepCopy()
-	} else if rule.BatchJob != nil {
-		action = rule.BatchJob.DeepCopy()
-	} else if rule.Webhook != nil {
-		action = rule.Webhook.DeepCopy()
-	} else {
-		klog.Warningf(
-			"There are no action details, rule '%s' will have no effect on alert '%s'",
-			rule.ObjectMeta.Name,
-			alert.Name(),
-		)
-		return nil
-	}
-
-	// Increment the metric of requested heales.
-	metrics.ActionRequested(
-		reflect.TypeOf(action).Elem().Name(),
-		rule.ObjectMeta.Name,
-		alert.Labels["alertname"],
 	)
 
 	rule = rule.DeepCopy()
@@ -225,26 +199,36 @@ func (h *Healer) runRule(ctx context.Context, rule *autoheal.HealingRule, alert 
 		return err
 	}
 
-	// Discard the action if it has been executed recently:
-	if h.actionMemory.Has(action) {
-		klog.Infof(
-			"Action for rule '%s' and alert '%s' has been executed recently, it will be ignored",
-			rule.ObjectMeta.Name,
-			alert.Name(),
-		)
-		return nil
-	}
-
 	// Execute the action
 	// TODO: refactor to factory builder
 	for _, runner := range h.actionRunners {
-		if err = runner.RunAction(ctx, rule, alert); err != nil {
-			return err
+		action := runner.OnAction(rule, alert)
+		// can't simply assert that action == nil cause action is a typed pointer
+		if v := reflect.ValueOf(action); v.Kind() == reflect.Ptr && !v.IsNil() {
+			// Increment the metric of requested heales.
+			metrics.ActionRequested(
+				reflect.TypeOf(action).Elem().Name(),
+				rule.ObjectMeta.Name,
+				alert.Labels["alertname"],
+			)
+
+			// Discard the action if it has been executed recently
+			if h.actionMemory.Has(action) {
+				klog.Infof(
+					"Action for rule '%s' and alert '%s' has been executed recently, it will be ignored",
+					rule.ObjectMeta.Name,
+					alert.Name(),
+				)
+				return nil
+			}
+
+			if err = runner.RunAction(ctx, rule, alert); err != nil {
+				return err
+			}
+			// Remember that the action was executed recently, even if the execution failed
+			h.actionMemory.Add(action)
 		}
 	}
 
-	// Remember that the action was executed recently, even if the execution failed:
-	h.actionMemory.Add(action)
-
-	return err
+	return nil
 }
