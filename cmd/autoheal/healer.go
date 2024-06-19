@@ -230,7 +230,11 @@ func (h *Healer) Run(stopCh <-chan struct{}) error {
 		h.reloadRulesCache()
 	})
 
-	// Start the web server:
+	// Start the web server
+	http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("Healthy"))
+	})
 	http.Handle("/metrics", metrics.Handler())
 	http.HandleFunc("/alerts", h.handleRequest)
 
@@ -294,7 +298,7 @@ func (h *Healer) handleRequest(response http.ResponseWriter, request *http.Reque
 	}
 
 	// Dump the request to the log:
-	if klog.V(2).Enabled() {
+	if klog.V(5).Enabled() {
 		klog.Infof("Request body:\n%s", h.indent(body))
 	}
 

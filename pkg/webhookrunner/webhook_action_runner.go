@@ -42,7 +42,7 @@ func (r *Runner) RunAction(ctx context.Context, rule *autoheal.HealingRule, aler
 	if action.Method != "" {
 		method = action.Method
 	}
-
+	klog.V(3).InfoS("http request", "method", method, "url", action.URL, "body", action.Template)
 	req, err := http.NewRequest(method, action.URL, bytes.NewBuffer([]byte(action.Template)))
 	if err != nil {
 		return err

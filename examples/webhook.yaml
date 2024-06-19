@@ -1,0 +1,17 @@
+kind: HealingRule
+apiVersion: autoheal.openshift.io/v1alpha2
+metadata:
+  name: send-feishu
+labels:
+  alertgroup: kubernetes-apps
+webhook:
+  url: https://open.feishu.cn/open-apis/bot/v2/hook/50ede06d-c159-4c8f-ab69-fb156693ecb5
+  headers:
+    Content-Type: ["application/json"]
+  template: |
+    {
+      "msg_type": "text",
+      "content": {
+        "text": "{{ $annotations.description }} is {{ $alert.Status }}"
+      }
+    }

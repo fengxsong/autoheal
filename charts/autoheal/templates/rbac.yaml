@@ -1,0 +1,53 @@
+{{- if .Values.rbac.create -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "autoheal.serviceAccountName" . }}
+  labels:
+    {{- include "autoheal.labels" . | nindent 4 }}
+  {{- with .Values.rbac.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+automountServiceAccountToken: {{ .Values.rbac.automount }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "autoheal.serviceAccountName" . }}
+  labels:
+    {{- include "autoheal.labels" . | nindent 4 }}
+  {{- with .Values.rbac.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+rules:
+- apiGroups:
+  - autoheal.openshift.io
+  resources:
+  - healingrules
+  verbs:
+  - get
+  - list
+  - update
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "autoheal.serviceAccountName" . }}
+  labels:
+    {{- include "autoheal.labels" . | nindent 4 }}
+  {{- with .Values.rbac.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "autoheal.serviceAccountName" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "autoheal.serviceAccountName" . }}
+  namespace: {{ .Release.Namespace }}
+{{- end }}
