@@ -149,7 +149,11 @@ func (t *ObjectTemplate) processString(input string, data interface{}) (out []by
 	buffer.WriteString(input)
 	text := buffer.String()
 
-	tmpl, err := defaultTpl.Parse(text)
+	tmpl, err := defaultTpl.Clone()
+	if err != nil {
+		return nil, err
+	}
+	tmpl, err = tmpl.Parse(text)
 	if err != nil {
 		return
 	}

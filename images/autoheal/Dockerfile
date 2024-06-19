@@ -1,4 +1,4 @@
-ARG BUILD_IMAGE=golang:1.21-alpine
+ARG BUILD_IMAGE=golang:1.22
 
 FROM $BUILD_IMAGE as build
 ARG TARGETOS
@@ -11,10 +11,10 @@ COPY go.mod go.sum /workspace/
 RUN go mod download
 COPY cmd /workspace/cmd
 COPY pkg /workspace/pkg
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o autoheal cmd/autoheal/
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o autoheal ./cmd/autoheal/
 
-FROM alpine:3.17
-RUN useradd --no-create-home autoheal
+FROM alpine:3
+RUN addgroup -S autoheal && adduser -S autoheal -G autoheal
 USER autoheal
 EXPOSE 9099
 

@@ -1,6 +1,6 @@
 module github.com/openshift/autoheal
 
-go 1.21.5
+go 1.22
 
 require (
 	github.com/moolitayer/awx-client-go v0.0.0-20180514144759-3f8d4f28364b
